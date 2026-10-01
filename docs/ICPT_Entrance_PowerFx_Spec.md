@@ -34,7 +34,7 @@ Errores de la v2 contra el video, ya corregidos en v3:
 | Pulso simple 1 → 1.4 → 1 | 1 → 0.8 → 2.1 → 1 en ~810 ms. El punto sigue un objetivo con un resorte de amortiguamiento crítico (`Follow`), la misma curva ease-out de la entrada orbit. Velocidad continua: sin pausas ni quiebres. |
 | Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~13 px del centro de la bombilla (máximo en el 210 %, vuelve a 0 en el 100 %) sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
 | La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola, con el mismo `Follow` que los puntos (baja rápido, sube con una cola larga). Los puntos no flotan. |
-| El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño. Sube 15 px. |
+| El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño ni de posición. En el video sube 15 px, pero no hace falta: el wordmark usa las mismas dos líneas que "Welcome" + nombre. |
 | El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
 | Loop infinito | Termina y navega a la app (`Navigate(…, ScreenTransition.Fade)`) |
 | El texto no cambia durante el hold | El texto "respira": la opacidad baja a 0.65 en cada ola, desde la ola 2 |
@@ -77,7 +77,7 @@ AppVersion     = "4.1";                // Constante por release. Se muestra como
 // =====================================================================
 // Variante activa. Idea: "A" la primera vez del día, "B" las siguientes.
 // =====================================================================
-SplashVariant = "C";   // favorita actual: Orbit + compacta
+SplashVariant = "D";   // favorita actual: Orbit + 3 olas
 
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
@@ -85,7 +85,6 @@ Lay = {
     LogoPad: 22,
     LogoTop: -120,      // top del logo respecto del centro vertical
     LogoRise: 10,
-    LogoUp: 15,
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
     DotDrift: 3.5,      // separación máxima sobre el rayo, unidades del SVG (≈ 9 px)
@@ -100,8 +99,8 @@ Lay = {
     NameBase: 71,
     NameMaxW: 0.62,
     WmSize: 34,
-    Wm1Base: 20,
-    Wm2Base: 58
+    Wm1Base: 33,        // = WelcomeBase: el wordmark ocupa las mismas líneas => el logo no se mueve
+    Wm2Base: 71         // = NameBase
 };
 
 // Timelines (ms). Mismos números que TL.A / TL.B / TL.C en el prototipo.
@@ -110,21 +109,28 @@ TL = Switch(SplashVariant,
           w1In: 30, w1Stag: 25, w1Dur: 220, nmIn: 250, nmStag: 12, nmDur: 380,
           waveAt: 1200, period: 1450, waves: 4, step: 110, breath: 0.35,
           w1Out: 6830, w1OutStag: 25, w1OutDur: 200, nmOut: 7080, nmOutStag: 10, nmOutDur: 330,
-          logoUpAt: 8100, logoUpDur: 260, wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
+          wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
           outAt: 10080, wmOutDur: 100, logoOutDur: 250, navAt: 10780},
     "B", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 22, w1Dur: 200, nmIn: 200, nmStag: 10, nmDur: 320,
           waveAt: 800, period: 1300, waves: 2, step: 95, breath: 0.25,
           w1Out: 3300, w1OutStag: 22, w1OutDur: 180, nmOut: 3480, nmOutStag: 9, nmOutDur: 300,
-          logoUpAt: 3950, logoUpDur: 240, wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
+          wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
           outAt: 5500, wmOutDur: 120, logoOutDur: 250, navAt: 5950},
     /* "C" */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
           waveAt: 1700, period: 1300, waves: 1, step: 95, breath: 0.25,
           w1Out: 2950, w1OutStag: 22, w1OutDur: 180, nmOut: 3130, nmOutStag: 9, nmOutDur: 300,
-          logoUpAt: 3600, logoUpDur: 240, wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
-          outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600}
+          wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
+          outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600},
+    /* "D" (default) */
+         {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
+          w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
+          waveAt: 1700, period: 1300, waves: 3, step: 95, breath: 0.25,
+          w1Out: 5550, w1OutStag: 22, w1OutDur: 180, nmOut: 5730, nmOutStag: 9, nmOutDur: 300,
+          wm1In: 6000, wm1Stag: 26, wm1Dur: 200, wm2In: 6250, wm2Stag: 7, wm2Dur: 170,
+          outAt: 7250, wmOutDur: 120, logoOutDur: 250, navAt: 7700}
 );
 
 // =====================================================================
@@ -278,7 +284,7 @@ Height = 39.07 * Lay.K + 2 * Lay.LogoPad
 X      = (Parent.Width - Self.Width) / 2
 Y      = Parent.Height / 2 + Lay.LogoTop - Lay.LogoPad
          + If(TL.orbit, 0, Lay.LogoRise * (1 - EaseOut(Prog(varT, 0, TL.logoInDur))))
-         - Lay.LogoUp * EaseInOut(Prog(varTb, TL.logoUpAt, TL.logoUpDur))
+         // El logo no se mueve para el wordmark.
 Fill   = Color.Transparent
 ```
 
@@ -361,10 +367,13 @@ Y = Parent.Height / 2 + Lay.Wm1Base - Lay.WmSize * 1.2
 Transparency = Prog(varTb, TL.outAt, TL.wmOutDur)
 Visible = varTb >= TL.wm1In
 
-// imgWm2
+// imgWm2 — misma línea que el nombre: espera a que el nombre termine de salir (nombres largos)
+// Wm2At = Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40)
 Image = RevealSvg("Prioritization Tool", varTb, Lay.WmSize, Parent.Width, "url(#g)", GradWm2, FontUI,
-                  TL.wm2In, TL.wm2Stag, TL.wm2Dur, false, 1E9, 0, 1, false)
+                  Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40),
+                  TL.wm2Stag, TL.wm2Dur, false, 1E9, 0, 1, false)
 Y = Parent.Height / 2 + Lay.Wm2Base - Lay.WmSize * 1.2
+Visible = varTb >= Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40)
 ```
 
 ### Tags — DINÁMICO
@@ -385,38 +394,38 @@ RadiusTopLeft = 6   // y los otros tres
 
 ---
 
-## 6. Timeline variante A (fiel al video)
+## 6. Timeline variante D (default: Orbit + 3 olas)
 
 | ms | Evento |
 |---|---|
-| 0 | Corte a negro. El logo aparece (fade 150 ms) y sube 10 px (300 ms). |
-| 30 → 400 | "Welcome" letra por letra (stagger 25 ms, 220 ms por letra, sin fade). |
-| 250 → ≈ 800 | Nombre letra por letra, con fade (stagger 12 ms, 380 ms). El final depende del largo del nombre. |
-| 1200, 2650, 4100, 5550 | 4 olas. Cada una: LB → LT → Top → RT → RB, cada 110 ms. La bombilla flota un ciclo por ola. |
-| 2520 → 6420 | El texto respira (opacidad mín. 0.65) en las olas 2 a 4. |
-| 6830 → 7180 | "Welcome" baja y sale por la máscara. |
-| 7080 → ≈ 7530 | El nombre baja y sale, con fade. |
-| 8100 → 8360 | El logo sube 15 px. |
-| 8580 → 9070 | "Investment" letra por letra. |
-| 8880 → 9200 | "Prioritization Tool" letra por letra. |
-| 10080 | Sale el wordmark (100 ms). El logo sale con fade (250 ms). |
-| 10780 | `Navigate(scrHome, ScreenTransition.Fade)`. |
+| 0 → 450 | El bulbo entra: fade + escala 0.85 → 1. |
+| 80 → 1110 | Los 5 puntos entran orbitando 150° alrededor del bulbo (stagger 70 ms, 750 ms cada uno). |
+| 780 → 1110 | "Welcome" letra por letra. |
+| 950 → ≈ 1460 | Nombre letra por letra, con fade. El final depende del largo del nombre. |
+| 1700, 3000, 4300 | 3 olas. Cada una: LB → LT → Top → RT → RB, cada 95 ms. La bombilla flota un ciclo por ola. |
+| 2870 → 5170 | El texto respira (opacidad mín. 0.75) en las olas 2 y 3, sincronizado con cada ola. |
+| 5550 → 5860 | "Welcome" baja y sale por la máscara. |
+| 5730 → ≈ 6210 | El nombre baja y sale, con fade. |
+| 6000 → 6430 | "Investment" entra letra por letra, en la línea de "Welcome". El logo no se mueve. |
+| 6250 → 6550 | "Prioritization Tool" entra en la línea del nombre (espera más si el nombre es largo). |
+| 7250 | Sale el wordmark (120 ms). El logo sale con fade (250 ms). |
+| 7700 | `Navigate(scrHome, ScreenTransition.Fade)`. |
 
-Con datos lentos, todo lo que está desde 6830 ms en adelante se corre en ciclos completos de 1450 ms.
+Con datos lentos, todo lo que está desde 5550 ms en adelante se corre en ciclos completos de 1300 ms. Los tiempos de A, B y C están en `TL` (§3).
 
 ---
 
 ## 7. Variantes
 
-| | A · Fiel al video | B · Compacta | C · Orbit + compacta |
-|---|---|---|---|
-| Duración | ≈ 11 s | ≈ 6 s | ≈ 5.9 s |
-| Entrada del logo | Fade + sube 10 px | Igual que A | Bulbo escala 0.85 → 1. Los puntos entran orbitando 150° alrededor del bulbo (Cos/Sin), con stagger de 70 ms. |
-| Olas | 4 × 1450 ms | 2 × 1300 ms | 1 × 1300 ms (la órbita reemplaza a la primera ola) |
-| Respiración | 0.35 | 0.25 | 0.25 |
-| Uso sugerido | Primer ingreso del día / demo | Ingresos siguientes | Alternativa de marca, más "viva" en la entrada |
+| | A · Fiel al video | B · Compacta | C · Orbit + compacta | D · Orbit + 3 olas |
+|---|---|---|---|---|
+| Duración | ≈ 11 s | ≈ 6 s | ≈ 5.6 s | ≈ 7.7 s |
+| Entrada del logo | Fade + sube 10 px | Igual que A | Bulbo escala 0.85 → 1. Los puntos entran orbitando 150° (Cos/Sin), stagger 70 ms. | Igual que C |
+| Olas | 4 × 1450 ms | 2 × 1300 ms | 1 × 1300 ms | 3 × 1300 ms |
+| Respiración del texto | 0.35 | 0.25 | No llega a verse (1 ola) | 0.25, en las olas 2 y 3 |
+| Uso sugerido | Referencia / demo | Ingresos siguientes | Ingresos siguientes, versión de marca | **Default.** Primer ingreso del día |
 
-Recomendación: no mostrar 11 s de splash en cada ingreso. Usen A la primera vez del día y B las siguientes. Con `SplashShift` ninguna de las dos corta la animación a mitad de una ola si los datos tardan.
+En ninguna variante el logo se mueve para el wordmark. Recomendación: D la primera vez del día y C las siguientes. Con `SplashShift`, ninguna corta la animación a mitad de una ola si los datos tardan.
 
 ---
 

@@ -74,7 +74,8 @@
   <div class="row">
     <button data-v="A">A · Fiel al video (≈11 s)</button>
     <button data-v="B">B · Compacta (≈6 s)</button>
-    <button data-v="C" class="on">C · Orbit + compacta (≈6 s)</button>
+    <button data-v="C">C · Orbit + compacta (≈6 s)</button>
+    <button data-v="D" class="on">D · Orbit + 3 olas (≈7.7 s)</button>
     <button id="btnPlay">⏸ Pausa</button>
     <button id="btnReplay">↺ Reiniciar</button>
     <select id="speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select>
@@ -129,14 +130,14 @@ const LAYOUT = {
   logoK: 2.56,          // 1 unidad del SVG (viewBox 38 x 39.07) = 2.56 px  -> logo de 97 x 100
   logoTop: -120,        // top del logo respecto del centro vertical (fase saludo)
   logoRise: 10,         // el logo entra subiendo 10 px
-  logoUp: 15,           // el logo sube 15 px antes del wordmark
   txtSize: 36,          // "Welcome" y nombre
   welcomeBase: 33,      // baseline respecto del centro
   nameBase: 71,
   nameMaxW: 0.62,       // el nombre no ocupa más del 62 % del ancho (nombres largos achican la fuente)
   wmSize: 34,           // wordmark
-  wm1Base: 20,
-  wm2Base: 58,
+  // El wordmark usa las MISMAS dos líneas que "Welcome" + nombre => el logo no se mueve.
+  wm1Base: 33,
+  wm2Base: 71,
   tagMargin: 32, tagBottom: 28,
 };
 
@@ -196,7 +197,6 @@ const TL = {
     waveAt:1200, period:1450, waves:4, step:110, breath:0.35,
     w1Out:6830, w1OutStag:25, w1OutDur:200,
     nmOut:7080, nmOutStag:10, nmOutDur:330,
-    logoUpAt:8100, logoUpDur:260,
     wm1In:8580, wm1Stag:30, wm1Dur:220,
     wm2In:8880, wm2Stag:8,  wm2Dur:180,
     outAt:10080, wmOutDur:100, logoOutDur:250,
@@ -209,7 +209,6 @@ const TL = {
     waveAt:800, period:1300, waves:2, step:95, breath:0.25,
     w1Out:3300, w1OutStag:22, w1OutDur:180,
     nmOut:3480, nmOutStag:9, nmOutDur:300,
-    logoUpAt:3950, logoUpDur:240,
     wm1In:4250, wm1Stag:26, wm1Dur:200,
     wm2In:4500, wm2Stag:7,  wm2Dur:170,
     outAt:5500, wmOutDur:120, logoOutDur:250,
@@ -222,11 +221,22 @@ const TL = {
     waveAt:1700, period:1300, waves:1, step:95, breath:0.25,
     w1Out:2950, w1OutStag:22, w1OutDur:180,
     nmOut:3130, nmOutStag:9, nmOutDur:300,
-    logoUpAt:3600, logoUpDur:240,
     wm1In:3900, wm1Stag:26, wm1Dur:200,
     wm2In:4150, wm2Stag:7,  wm2Dur:170,
     outAt:5150, wmOutDur:120, logoOutDur:250,
     navAt:5600,
+  },
+  D: { // entrada orbit de C + 3 olas (como A) + respiración del texto en las olas 2 y 3. Logo fijo.
+    orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
+    w1In:780, w1Stag:22, w1Dur:200,
+    nmIn:950, nmStag:10, nmDur:320,
+    waveAt:1700, period:1300, waves:3, step:95, breath:0.25,
+    w1Out:5550, w1OutStag:22, w1OutDur:180,
+    nmOut:5730, nmOutStag:9, nmOutDur:300,
+    wm1In:6000, wm1Stag:26, wm1Dur:200,
+    wm2In:6250, wm2Stag:7,  wm2Dur:170,
+    outAt:7250, wmOutDur:120, logoOutDur:250,
+    navAt:7700,
   },
 };
 
@@ -383,7 +393,7 @@ const BULB_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 39.07'
 
 $('bulb').src = 'data:image/svg+xml;utf8,' + encodeURIComponent(BULB_SVG);
 
-let variant = 'C', asImg = false, readyAtMs = 0;
+let variant = 'D', asImg = false, readyAtMs = 0;
 const cache = {};   // evita reescribir el DOM si el SVG no cambió
 
 function setTxt(el, svg){
@@ -402,8 +412,7 @@ function render(t){
   const logoIn = k.orbit ? 1 : Prog(t, 0, 150);
   const logoOut = 1 - Prog(tb, k.outAt, k.logoOutDur);
   const logoY = cy + Lt.logoTop
-              + (k.orbit ? 0 : Lt.logoRise * (1 - EaseOut(Prog(t, 0, k.logoInDur))))
-              - Lt.logoUp * EaseInOut(Prog(tb, k.logoUpAt, k.logoUpDur));
+              + (k.orbit ? 0 : Lt.logoRise * (1 - EaseOut(Prog(t, 0, k.logoInDur))));   // el logo no sube para el wordmark
   const logo = $('logo');
   logo.style.left = N((W - lw) / 2) + 'px'; logo.style.top = N(logoY) + 'px';
   logo.style.width = N(lw) + 'px'; logo.style.height = N(lh) + 'px';
@@ -477,11 +486,13 @@ function render(t){
     inAt:k.wm1In, inStag:k.wm1Stag, inDur:k.wm1Dur, inFade:false,
     outAt:1e9, outStag:0, outDur:1, outFade:false}));
   wm1.style.opacity = N(wmA);
+  // Misma línea que el nombre: "Prioritization Tool" espera a que el nombre termine de salir (nombres largos).
+  const wm2At = Math.max(k.wm2In, k.nmOut + [...name].length * k.nmOutStag + k.nmOutDur + 40);
   const wm2 = $('txtWm2');
   wm2.style.top = N(cy + Lt.wm2Base - WS * 1.2) + 'px';
-  wm2.style.display = tb < k.wm2In ? 'none' : '';
+  wm2.style.display = tb < wm2At ? 'none' : '';
   setTxt(wm2, RevealSvg({id:'wb', txt:'Prioritization Tool', t:tb, size:WS, w:W, fill:'url(#g)', defs:GradDefs(COLORS.wm2Grad), family:FONT_WM,
-    inAt:k.wm2In, inStag:k.wm2Stag, inDur:k.wm2Dur, inFade:false,
+    inAt:wm2At, inStag:k.wm2Stag, inDur:k.wm2Dur, inFade:false,
     outAt:1e9, outStag:0, outDur:1, outFade:false}));
   wm2.style.opacity = N(wmA);
 
@@ -508,7 +519,7 @@ const endOf = () => TL[variant].navAt + 400;
 function phaseName(k, tb, t){
   if (t < k.waveAt) return 'entrada saludo';
   if (tb < k.w1Out) return 'olas / hold';
-  if (tb < k.logoUpAt) return 'salida saludo';
+  if (tb < k.wm1In) return 'salida saludo';
   if (tb < k.outAt) return 'wordmark';
   if (tb < k.navAt) return 'salida logo';
   return 'navigate';
