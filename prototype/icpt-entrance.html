@@ -90,6 +90,8 @@
     <label><span class="dyn">DINÁMICO</span> Nombre <input class="field" id="inName"></label>
     <label><span class="dyn">DINÁMICO</span> OU <input class="field" id="inOU" style="width:150px"></label>
     <label><span class="dyn">DINÁMICO</span> Versión <input class="field" id="inVer" style="width:70px"></label>
+    <label>Curva puntos <input class="field" id="inCurve" style="width:130px" value="0.5, 0, 0.5, 1"></label>
+    <label>Separación <input class="field" id="inDrift" type="number" min="0" max="10" step="0.5" style="width:64px" value="5"></label>
     <label>Datos listos a los <input class="field" id="inReady" type="number" min="0" step="0.5" style="width:70px" value="0"> s</label>
   </div>
 </div>
@@ -159,7 +161,9 @@ const ORBIT_C = {x:19, y:18.5};   // centro de giro para la variante C
 const ASTER_C = {x:19, y:19};
 for (const d of DOTS){ const dx = d.cx - ASTER_C.x, dy = d.cy - ASTER_C.y, r = Math.hypot(dx, dy); d.ux = dx / r; d.uy = dy / r; }
 const DOT_PEAK = 2.1;    // escala máxima del pulso (video: 15 px -> 31 px)
-const DOT_DRIFT = 3.2;   // separación máxima sobre el rayo, en unidades del SVG (≈ 8 px)
+let DOT_DRIFT = 5;       // separación máxima sobre el rayo, en unidades del SVG (≈ 13 px). Editable en la barra.
+let DOT_CURVE = [0.5, 0, 0.5, 1];   // cubic-bezier del pulso (igual que en Figma). Editable en la barra.
+const PULSE = {shrink:160, grow:160, hold:50, back:160};   // ms de cada tramo del pulso
 const BULB_FLOAT = 3.5;  // flote de la bombilla, px hacia abajo
 
 /* ---------------------------------------------------------------------------------------
@@ -221,16 +225,35 @@ const EaseInOut = p => { p = Clamp01(p); return p < 0.5 ? 4*p*p*p : 1 - Math.pow
 const N = x => String(Math.round(x * 100) / 100);
 const XmlEsc = c => c === ' ' ? '&#160;' : c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-// Pulso de un punto (410 ms): anticipación 1 -> 0.8 rápido, crece a 2.1, pico corto, vuelve a 1.
+// cubic-bezier(x1, y1, x2, y2), igual que en Figma / CSS. Resuelve x -> t con 5 pasos de Newton
+// (número fijo de pasos: en Power Fx son 5 With() anidados, sin loops).
+function CubicBezier(p, x1, y1, x2, y2){
+  const x = Clamp01(p);
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  let t = x;
+  for (let i = 0; i < 5; i++){
+    const fx = ((ax * t + bx) * t + cx) * t - x;
+    const dx = (3 * ax * t + 2 * bx) * t + cx;
+    if (Math.abs(dx) > 1e-6) t = Clamp01(t - fx / dx);
+  }
+  return ((ay * t + by) * t + cy) * t;
+}
+const DotEase = p => CubicBezier(p, ...DOT_CURVE);
+
+// Pulso de un punto (530 ms). Cada tramo usa la misma curva bezier:
+// 1 -> 0.8 (anticipación, 160 ms) -> 2.1 (160 ms) -> pico (50 ms) -> 1 (160 ms)
 function DotScale(u){
-  if (u <= 0 || u >= 410) return 1;
-  if (u < 100) return 1 - 0.2 * EaseInOut(u / 100);
-  if (u < 230) return 0.8 + (DOT_PEAK - 0.8) * EaseOut((u - 100) / 130);
-  if (u < 290) return DOT_PEAK;
-  return DOT_PEAK - (DOT_PEAK - 1) * EaseInOut((u - 290) / 120);
+  const a = PULSE.shrink, b = a + PULSE.grow, c = b + PULSE.hold, d = c + PULSE.back;
+  if (u <= 0 || u >= d) return 1;
+  if (u < a) return 1 - 0.2 * DotEase(u / PULSE.shrink);
+  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * DotEase((u - a) / PULSE.grow);
+  if (u < c) return DOT_PEAK;
+  return DOT_PEAK - (DOT_PEAK - 1) * DotEase((u - c) / PULSE.back);
 }
 
-// Separación sobre el rayo: sigue al crecimiento (no entra hacia el centro durante la anticipación).
+// Separación sobre el rayo: es máxima cuando la escala llega a 2.1 y vuelve a 0 cuando el punto vuelve a 100 %.
+// No entra hacia el centro durante la anticipación.
 const DotDrift = s => DOT_DRIFT * Math.max(0, s - 1) / (DOT_PEAK - 1);
 
 // Flote de la bombilla: un ciclo por ola, empieza 17 % del período antes de la ola.
@@ -474,6 +497,13 @@ $('tick').onchange = e => tick = +e.target.value;
 $('scrub').oninput = e => { t = +e.target.value; playing = false; $('btnPlay').textContent = '▶ Play'; };
 $('chkImg').onchange = e => { asImg = e.target.checked; for (const key in cache) delete cache[key]; };
 $('chkGuides').onchange = e => document.body.classList.toggle('guides', e.target.checked);
+$('inCurve').oninput = e => {
+  const v = e.target.value.split(',').map(Number);
+  const ok = v.length === 4 && v.every(Number.isFinite);
+  e.target.style.borderColor = ok ? '' : '#F40008';
+  if (ok) DOT_CURVE = v;
+};
+$('inDrift').oninput = e => { const v = +e.target.value; if (Number.isFinite(v)) DOT_DRIFT = Math.max(0, v); };
 $('inReady').oninput = e => { readyAtMs = Math.max(0, +e.target.value || 0) * 1000; };
 
 for (const [inp, key] of [['inName','userName'],['inOU','orgUnit'],['inVer','appVersion']]){

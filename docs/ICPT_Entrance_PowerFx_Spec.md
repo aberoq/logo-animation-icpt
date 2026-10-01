@@ -16,7 +16,7 @@ Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps,
 | 4 | Texto con gradiente (`background-clip:text`) | Un Label solo tiene un color sólido. | `linearGradient` dentro del SVG (`objectBoundingBox`: se adapta al ancho de cualquier nombre). |
 | 5 | Cadena de `setTimeout` + `transition` CSS | No existe. Además, los tiempos se desfasan entre sí. | Un Timer y una variable de tiempo real. Todo es función pura de `varT`. Easing escrito como fórmula. |
 | 6 | Opacidad del grupo del logo | Un Container no tiene `Transparency`. | Opacidad por control: `Image.Transparency` en el bulbo, `RGBA(r,g,b,alpha)` en cada Circle. |
-| 7 | Puntos que crecen a 2.1× y se separan del bulbo | Un Container recorta a sus hijos. En el pico, el punto de arriba y los de la izquierda salen hasta 15 px del borde y se cortan. | El Container del logo tiene 18 px de padding en cada lado (`LogoPad`). |
+| 7 | Puntos que crecen a 2.1× y se separan del bulbo | Un Container recorta a sus hijos. En el pico, el punto de arriba y los de la izquierda salen hasta 20 px del borde y se cortan. | El Container del logo tiene 22 px de padding en cada lado (`LogoPad`). |
 | 8 | Timer que suma `varT + 30` en cada tick | El Timer no es preciso (jitter, pestaña en segundo plano). La animación se atrasa. | `varT = DateDiff(varT0, Now(), TimeUnit.Milliseconds)`. Si un tick se atrasa, el siguiente cuadro igual es correcto. |
 | 9 | Números dentro del SVG | `Text(12.5)` en un tenant es-CO / es-MX da `"12,5"` y el SVG se rompe. | `N(x) = Text(Round(x, 2), "0.##", "en-US")`. Siempre con `"en-US"`. |
 | 10 | Fuente del wordmark (geométrica ancha, parecida a Montserrat Bold) | Un SVG dentro de un Image control se renderiza como imagen y **no carga fuentes web**. Solo usa fuentes del sistema. | Nombre y "Welcome": `Segoe UI` (sistema, en Windows). Wordmark: paths de Figma, una letra por `<g>` (pendiente, ver §8). |
@@ -31,8 +31,8 @@ Errores de la v2 contra el video, ya corregidos en v3:
 | Las letras bajan desde arriba con fade | Las letras suben desde abajo a través de una máscara (línea de corte en la baseline) |
 | Nombre con colores cíclicos por letra (rojo, naranja, amarillo…) | Nombre con un gradiente continuo: menta → amarillo → naranja → rojo |
 | Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 135 ms entre puntos. |
-| Pulso simple 1 → 1.4 → 1 | Anticipación: 1 → 0.8 (100 ms) → 2.1 (130 ms) → pico 60 ms → 1 (120 ms) |
-| Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~8 px del centro de la bombilla sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
+| Pulso simple 1 → 1.4 → 1 | Anticipación: 1 → 0.8 (160 ms) → 2.1 (160 ms) → pico 50 ms → 1 (160 ms). Cada tramo con `cubic-bezier(0.5, 0, 0.5, 1)`. |
+| Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~13 px del centro de la bombilla (máximo en el 210 %, vuelve a 0 en el 100 %) sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
 | La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola. Los puntos no flotan. |
 | El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño. Sube 15 px. |
 | El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
@@ -53,7 +53,7 @@ Controles:
 | Control | Tipo | Qué hace |
 |---|---|---|
 | `tmrSplash` | Timer | Reloj. `Visible = false`. |
-| `conLogo` | Container | Grupo del logo. Solo posición (Y animada). Padding 18 px. |
+| `conLogo` | Container | Grupo del logo. Solo posición (Y animada). Padding 22 px. |
 | `imgBulb` | Image | Bulbo + base (`assets/icpt-bulb.svg`, en Media). Solo se mueve en Y (flote). |
 | `cirDotTop`, `cirDotLT`, `cirDotRT`, `cirDotLB`, `cirDotRB` | Circle | Los 5 puntos. Width/Height/X/Y animados. |
 | `imgWelcome`, `imgName` | Image | Saludo y nombre (`RevealSvg`). |
@@ -82,13 +82,16 @@ SplashVariant = "A";
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
     K: 2.56,            // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 2.56 px
-    LogoPad: 18,
+    LogoPad: 22,
     LogoTop: -120,      // top del logo respecto del centro vertical
     LogoRise: 10,
     LogoUp: 15,
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
-    DotDrift: 3.2,      // separación máxima sobre el rayo, unidades del SVG (≈ 8 px)
+    DotDrift: 5,        // separación máxima sobre el rayo, unidades del SVG (≈ 13 px)
+    // Curva del pulso: cubic-bezier(x1, y1, x2, y2), mismos valores que en Figma
+    CurveX1: 0.5, CurveY1: 0, CurveX2: 0.5, CurveY2: 1,
+    PulseShrink: 160, PulseGrow: 160, PulseHold: 50, PulseBack: 160,
     BulbFloat: 3.5,     // flote de la bombilla, px hacia abajo
     TxtSize: 36,
     WelcomeBase: 33,    // baselines respecto del centro vertical
@@ -132,16 +135,36 @@ EaseIn(p: Number): Number = Power(Clamp01(p), 3);
 EaseInOut(p: Number): Number = With({q: Clamp01(p)}, If(q < 0.5, 4 * Power(q, 3), 1 - Power(-2 * q + 2, 3) / 2));
 N(x: Number): Text = Text(Round(x, 2), "0.##", "en-US");
 
-// Pulso de un punto (410 ms). u = ms desde que empieza el pulso de ESE punto.
-// 1 -> 0.8 (anticipación, 100 ms) -> 2.1 (130 ms) -> pico 60 ms -> 1 (120 ms)
-DotScale(u: Number): Number =
-    If(u <= 0 || u >= 410, 1,
-       u < 100, 1 - 0.2 * EaseInOut(u / 100),
-       u < 230, 0.8 + (Lay.DotPeak - 0.8) * EaseOut((u - 100) / 130),
-       u < 290, Lay.DotPeak,
-       Lay.DotPeak - (Lay.DotPeak - 1) * EaseInOut((u - 290) / 120));
+// Un paso de Newton para resolver x(t) = x de una cubic-bezier.
+BezStep(t: Number, x: Number, x1: Number, x2: Number): Number =
+    With({cx: 3 * x1, bx: 3 * (x2 - x1) - 3 * x1},
+        With({ax: 1 - cx - bx},
+            With({fx: ((ax * t + bx) * t + cx) * t - x, dx: (3 * ax * t + 2 * bx) * t + cx},
+                If(Abs(dx) > 0.000001, Clamp01(t - fx / dx), t))));
 
-// Separación sobre el rayo (unidades del SVG). Sigue al crecimiento; en la anticipación (s < 1) es 0.
+// cubic-bezier(x1, y1, x2, y2), igual que en Figma / CSS. 5 pasos de Newton fijos (sin loops).
+// Error < 0.00001 frente a la curva exacta con curvas tipo ease-in-out.
+CubicBezier(p: Number, x1: Number, y1: Number, x2: Number, y2: Number): Number =
+    With({x: Clamp01(p)},
+        With({t: BezStep(BezStep(BezStep(BezStep(BezStep(x, x, x1, x2), x, x1, x2), x, x1, x2), x, x1, x2), x, x1, x2)},
+            With({cy: 3 * y1, by: 3 * (y2 - y1) - 3 * y1},
+                ((1 - cy - by) * t + by) * t * t + cy * t)));
+
+DotEase(p: Number): Number = CubicBezier(p, Lay.CurveX1, Lay.CurveY1, Lay.CurveX2, Lay.CurveY2);
+
+// Pulso de un punto (530 ms). u = ms desde que empieza el pulso de ESE punto.
+// 1 -> 0.8 (anticipación) -> 2.1 -> pico -> 1. Cada tramo con DotEase.
+DotScale(u: Number): Number =
+    With({a: Lay.PulseShrink, b: Lay.PulseShrink + Lay.PulseGrow,
+          c: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseHold,
+          d: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseHold + Lay.PulseBack},
+        If(u <= 0 || u >= d, 1,
+           u < a, 1 - 0.2 * DotEase(u / Lay.PulseShrink),
+           u < b, 0.8 + (Lay.DotPeak - 0.8) * DotEase((u - a) / Lay.PulseGrow),
+           u < c, Lay.DotPeak,
+           Lay.DotPeak - (Lay.DotPeak - 1) * DotEase((u - c) / Lay.PulseBack)));
+
+// Separación sobre el rayo (unidades del SVG). Máxima en el 210 %, 0 en el 100 %. En la anticipación (s < 1) es 0.
 DotDrift(s: Number): Number = Lay.DotDrift * Max(0, s - 1) / (Lay.DotPeak - 1);
 
 // Flote de la bombilla (px hacia abajo). Un ciclo por ola; empieza 17 % del período antes de la ola.
