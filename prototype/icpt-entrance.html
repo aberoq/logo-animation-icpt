@@ -230,7 +230,7 @@ const TL = {
     orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
     w1In:780, w1Stag:22, w1Dur:200,
     nmIn:950, nmStag:10, nmDur:320,
-    waveAt:1700, period:1300, waves:3, step:95, breath:0.25,
+    waveAt:1700, period:1300, waves:3, step:95, breath:0.35, breathFrom:0,   // respiración del video (35 %) en los 3 loops
     w1Out:5550, w1OutStag:22, w1OutDur:180,
     nmOut:5730, nmOutStag:9, nmOutDur:300,
     wm1In:6000, wm1Stag:26, wm1Dur:200,
@@ -341,10 +341,12 @@ function WaveLocal(k, t, order, shift){
 const WaveScale = (k, t, order, shift, lag = 0) => DotScale(WaveLocal(k, t - lag, order, shift));
 
 // "Respiración" del texto: baja la opacidad en las olas 2..n (en el video empieza 130 ms antes de la ola).
+// breathFrom = primera ola con respiración (0-based). Video: 1 (desde la ola 2). D: 0 (todos los loops).
 function Breath(k, t, shift){
-  const w = t - (k.waveAt + k.period) + 130;
+  const from = k.breathFrom ?? 1;
+  const w = t - (k.waveAt + from * k.period) + 130;
   const count = k.waves + shift / k.period;
-  if (w < 0 || w > (count - 1) * k.period) return 0;
+  if (w < 0 || w >= (count - from) * k.period) return 0;   // una respiración por ola, desde la ola 'from'
   const u = w % k.period;
   return u > 1000 ? 0 : Math.pow(Math.sin(Math.PI * u / 1000), 2);
 }

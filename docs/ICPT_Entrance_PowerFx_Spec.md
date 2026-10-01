@@ -107,27 +107,27 @@ Lay = {
 TL = Switch(SplashVariant,
     "A", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 25, w1Dur: 220, nmIn: 250, nmStag: 12, nmDur: 380,
-          waveAt: 1200, period: 1450, waves: 4, step: 110, breath: 0.35,
+          waveAt: 1200, period: 1450, waves: 4, step: 110, breath: 0.35, breathFrom: 1,
           w1Out: 6830, w1OutStag: 25, w1OutDur: 200, nmOut: 7080, nmOutStag: 10, nmOutDur: 330,
           wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
           outAt: 10080, wmOutDur: 100, logoOutDur: 250, navAt: 10780},
     "B", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 22, w1Dur: 200, nmIn: 200, nmStag: 10, nmDur: 320,
-          waveAt: 800, period: 1300, waves: 2, step: 95, breath: 0.25,
+          waveAt: 800, period: 1300, waves: 2, step: 95, breath: 0.25, breathFrom: 1,
           w1Out: 3300, w1OutStag: 22, w1OutDur: 180, nmOut: 3480, nmOutStag: 9, nmOutDur: 300,
           wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
           outAt: 5500, wmOutDur: 120, logoOutDur: 250, navAt: 5950},
     /* "C" */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
-          waveAt: 1700, period: 1300, waves: 1, step: 95, breath: 0.25,
+          waveAt: 1700, period: 1300, waves: 1, step: 95, breath: 0.25, breathFrom: 1,
           w1Out: 2950, w1OutStag: 22, w1OutDur: 180, nmOut: 3130, nmOutStag: 9, nmOutDur: 300,
           wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
           outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600},
     /* "D" (default) */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
-          waveAt: 1700, period: 1300, waves: 3, step: 95, breath: 0.25,
+          waveAt: 1700, period: 1300, waves: 3, step: 95, breath: 0.35, breathFrom: 0,
           w1Out: 5550, w1OutStag: 22, w1OutDur: 180, nmOut: 5730, nmOutStag: 9, nmOutDur: 300,
           wm1In: 6000, wm1Stag: 26, wm1Dur: 200, wm2In: 6250, wm2Stag: 7, wm2Dur: 170,
           outAt: 7250, wmOutDur: 120, logoOutDur: 250, navAt: 7700}
@@ -184,10 +184,11 @@ WaveLocal(t: Number, order: Number, shift: Number): Number =
             With({idx: Min(RoundDown(w / TL.period, 0), TL.waves + shift / TL.period - 1)},
                 t - (TL.waveAt + idx * TL.period + order * TL.step))));
 
-// Respiración del texto (0..1), desde la ola 2.
+// Respiración del texto (0..1). TL.breathFrom = primera ola con respiración (0-based):
+// 1 = desde la ola 2 (como el video, variantes A/B/C); 0 = en todos los loops (variante D).
 Breath(t: Number, shift: Number): Number =
-    With({w: t - (TL.waveAt + TL.period) + 130},
-        If(w < 0 || w > (TL.waves + shift / TL.period - 1) * TL.period, 0,
+    With({w: t - (TL.waveAt + TL.breathFrom * TL.period) + 130},
+        If(w < 0 || w >= (TL.waves + shift / TL.period - TL.breathFrom) * TL.period, 0,
             With({u: Mod(w, TL.period)}, If(u > 1000, 0, Power(Sin(Pi() * u / 1000), 2)))));
 
 // Una línea de texto con revelado letra por letra a través de una máscara.
@@ -403,7 +404,7 @@ RadiusTopLeft = 6   // y los otros tres
 | 780 → 1110 | "Welcome" letra por letra. |
 | 950 → ≈ 1460 | Nombre letra por letra, con fade. El final depende del largo del nombre. |
 | 1700, 3000, 4300 | 3 olas. Cada una: LB → LT → Top → RT → RB, cada 95 ms. La bombilla flota un ciclo por ola. |
-| 2870 → 5170 | El texto respira (opacidad mín. 0.75) en las olas 2 y 3, sincronizado con cada ola. |
+| 1570 → 5170 | "Welcome" y el nombre respiran (opacidad mín. 0.65, como el video) en los 3 loops, sincronizados con cada ola. |
 | 5550 → 5860 | "Welcome" baja y sale por la máscara. |
 | 5730 → ≈ 6210 | El nombre baja y sale, con fade. |
 | 6000 → 6430 | "Investment" entra letra por letra, en la línea de "Welcome". El logo no se mueve. |
@@ -422,7 +423,7 @@ Con datos lentos, todo lo que está desde 5550 ms en adelante se corre en ciclos
 | Duración | ≈ 11 s | ≈ 6 s | ≈ 5.6 s | ≈ 7.7 s |
 | Entrada del logo | Fade + sube 10 px | Igual que A | Bulbo escala 0.85 → 1. Los puntos entran orbitando 150° (Cos/Sin), stagger 70 ms. | Igual que C |
 | Olas | 4 × 1450 ms | 2 × 1300 ms | 1 × 1300 ms | 3 × 1300 ms |
-| Respiración del texto | 0.35 | 0.25 | No llega a verse (1 ola) | 0.25, en las olas 2 y 3 |
+| Respiración del texto | 0.35, olas 2–4 | 0.25, ola 2 | No llega a verse (1 ola) | 0.35, en los 3 loops |
 | Uso sugerido | Referencia / demo | Ingresos siguientes | Ingresos siguientes, versión de marca | **Default.** Primer ingreso del día |
 
 En ninguna variante el logo se mueve para el wordmark. Recomendación: D la primera vez del día y C las siguientes. Con `SplashShift`, ninguna corta la animación a mitad de una ola si los datos tardan.
