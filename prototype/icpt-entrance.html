@@ -90,7 +90,7 @@
     <label><span class="dyn">DINÁMICO</span> Nombre <input class="field" id="inName"></label>
     <label><span class="dyn">DINÁMICO</span> OU <input class="field" id="inOU" style="width:150px"></label>
     <label><span class="dyn">DINÁMICO</span> Versión <input class="field" id="inVer" style="width:70px"></label>
-    <label>Curva puntos <input class="field" id="inCurve" style="width:130px" value="0.5, 0, 0.5, 1"></label>
+    <label>Movimiento <select id="selMotion"><option value="organic">Orgánico (resorte)</option><option value="old">Anterior (bezier 0.5, 0, 0.5, 1)</option></select></label>
     <label>Separación <input class="field" id="inDrift" type="number" min="0" max="10" step="0.5" style="width:64px" value="5"></label>
     <label>Datos listos a los <input class="field" id="inReady" type="number" min="0" step="0.5" style="width:70px" value="0"> s</label>
   </div>
@@ -162,8 +162,15 @@ const ASTER_C = {x:19, y:19};
 for (const d of DOTS){ const dx = d.cx - ASTER_C.x, dy = d.cy - ASTER_C.y, r = Math.hypot(dx, dy); d.ux = dx / r; d.uy = dy / r; }
 const DOT_PEAK = 2.1;    // escala máxima del pulso (video: 15 px -> 31 px)
 let DOT_DRIFT = 5;       // separación máxima sobre el rayo, en unidades del SVG (≈ 13 px). Editable en la barra.
-let DOT_CURVE = [0.5, 0, 0.5, 1];   // cubic-bezier del pulso (igual que en Figma). Editable en la barra.
-const PULSE = {shrink:160, grow:160, hold:50, back:160};   // ms de cada tramo del pulso
+let MOTION = 'organic';  // 'organic' = curvas nuevas + resorte; 'old' = versión anterior, para comparar
+// Pulso orgánico: anticipación -> crecimiento -> resorte. Curvas en formato cubic-bezier (igual que Figma).
+const PULSE = {
+  shrink: 150, shrinkCurve: [0.45, 0, 0.55, 1],   // 1 -> 0.8, suave en los dos extremos
+  grow:   190, growCurve:   [0.4, 0.25, 0.2, 1],  // 0.8 -> 2.1, arranca con aceleración corta (sin quiebre), centro rápido, llega suave
+  spring: 360, springDecay: 70, springPeriod: 380, // 2.1 -> 1 con resorte: baja a ~0.93 y se asienta
+  driftLag: 50,                                     // la separación va 50 ms detrás de la escala (follow-through)
+};
+const PULSE_OLD = {shrink:160, grow:160, hold:50, back:160, curve:[0.5, 0, 0.5, 1]};
 const BULB_FLOAT = 3.5;  // flote de la bombilla, px hacia abajo
 
 /* ---------------------------------------------------------------------------------------
@@ -239,17 +246,32 @@ function CubicBezier(p, x1, y1, x2, y2){
   }
   return ((ay * t + by) * t + cy) * t;
 }
-const DotEase = p => CubicBezier(p, ...DOT_CURVE);
+// Resorte amortiguado que sale del pico con velocidad 0 (no hay quiebre en el 210 %).
+// 1 al empezar, 0 al final; en el medio pasa un poco por debajo de 0 y se asienta.
+function Spring(tau, decay, period){
+  const w = 2 * Math.PI / period;
+  return Math.exp(-tau / decay) * (Math.cos(w * tau) + Math.sin(w * tau) / (w * decay));
+}
 
-// Pulso de un punto (530 ms). Cada tramo usa la misma curva bezier:
-// 1 -> 0.8 (anticipación, 160 ms) -> 2.1 (160 ms) -> pico (50 ms) -> 1 (160 ms)
+// Pulso orgánico (680 ms): 1 -> 0.8 (anticipación) -> 2.1 -> resorte -> 1. Sin pausas.
 function DotScale(u){
-  const a = PULSE.shrink, b = a + PULSE.grow, c = b + PULSE.hold, d = c + PULSE.back;
+  if (MOTION === 'old') return DotScaleOld(u);
+  const P = PULSE, a = P.shrink, b = a + P.grow, d = b + P.spring;
   if (u <= 0 || u >= d) return 1;
-  if (u < a) return 1 - 0.2 * DotEase(u / PULSE.shrink);
-  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * DotEase((u - a) / PULSE.grow);
+  if (u < a) return 1 - 0.2 * CubicBezier(u / a, ...P.shrinkCurve);
+  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * CubicBezier((u - a) / P.grow, ...P.growCurve);
+  return 1 + (DOT_PEAK - 1) * Spring(u - b, P.springDecay, P.springPeriod);
+}
+
+// Versión anterior (para comparar): misma bezier simétrica en cada tramo + pausa en el pico.
+function DotScaleOld(u){
+  const P = PULSE_OLD, a = P.shrink, b = a + P.grow, c = b + P.hold, d = c + P.back;
+  const E = p => CubicBezier(p, ...P.curve);
+  if (u <= 0 || u >= d) return 1;
+  if (u < a) return 1 - 0.2 * E(u / P.shrink);
+  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * E((u - a) / P.grow);
   if (u < c) return DOT_PEAK;
-  return DOT_PEAK - (DOT_PEAK - 1) * DotEase((u - c) / PULSE.back);
+  return DOT_PEAK - (DOT_PEAK - 1) * E((u - c) / P.back);
 }
 
 // Separación sobre el rayo: es máxima cuando la escala llega a 2.1 y vuelve a 0 cuando el punto vuelve a 100 %.
@@ -257,12 +279,14 @@ function DotScale(u){
 const DotDrift = s => DOT_DRIFT * Math.max(0, s - 1) / (DOT_PEAK - 1);
 
 // Flote de la bombilla: un ciclo por ola, empieza 17 % del período antes de la ola.
-// Baja rápido (24 %), queda abajo (21 %), sube lento (28 %), reposo (27 %).
+// Orgánico: una sola onda continua, sin pausas. sin² con el tiempo deformado (u^0.7):
+// baja en el 37 % del ciclo y sube en el 63 % restante. Velocidad 0 solo arriba y abajo.
 function BulbFloat(k, t, shift){
   const P = k.period, w = t - (k.waveAt - 0.17 * P);
   const count = k.waves + shift / P;
   if (w < 0 || w >= count * P) return 0;
   const u = (w % P) / P;
+  if (MOTION !== 'old') return BULB_FLOAT * Math.pow(Math.sin(Math.PI * Math.pow(u, 0.7)), 2);
   if (u < 0.24) return BULB_FLOAT * EaseInOut(u / 0.24);
   if (u < 0.45) return BULB_FLOAT;
   if (u < 0.73) return BULB_FLOAT * (1 - EaseInOut((u - 0.45) / 0.28));
@@ -276,12 +300,12 @@ function Shift(k, t, readyAt){
 }
 
 // Escala de un punto en la fase de olas.
-function WaveScale(k, t, order, shift){
+function WaveScale(k, t, order, shift, lag = 0){
   const w = t - k.waveAt;
   if (w < 0) return 1;
   const count = k.waves + shift / k.period;
   const idx = Math.min(Math.floor(w / k.period), count - 1);
-  return DotScale(t - (k.waveAt + idx * k.period + order * k.step));
+  return DotScale(t - lag - (k.waveAt + idx * k.period + order * k.step));
 }
 
 // "Respiración" del texto: baja la opacidad en las olas 2..n (en el video empieza 130 ms antes de la ola).
@@ -373,16 +397,19 @@ function render(t){
 
   // Puntos: Circle controls. Escalar = cambiar Width/Height y recentrar X/Y (Power Apps no tiene "scale").
   for (const d of DOTS){
-    let cx = d.cx, cyd = d.cy, s = WaveScale(k, t, d.wave, shift), op = 1;
+    let cx = d.cx, cyd = d.cy, grow = 1, op = 1;   // grow = escala de entrada (solo C)
     if (k.orbit){
       const p = EaseOut(Prog(t, k.orbitAt + d.wave * k.orbitStag, k.orbitDur));
       const dx = d.cx - ORBIT_C.x, dy = d.cy - ORBIT_C.y;
       const r = Math.hypot(dx, dy), a0 = Math.atan2(dy, dx);
       const a = a0 + (1 - p) * k.sweep * Math.PI / 180;
       cx = ORBIT_C.x + r * Math.cos(a); cyd = ORBIT_C.y + r * Math.sin(a);
-      s *= p; op = Clamp01(p * 3);
+      grow = p; op = Clamp01(p * 3);
     }
-    const dr = DotDrift(s);                   // se aleja del centro sobre su rayo ("asterisco")
+    // Se aleja del centro sobre su rayo ("asterisco"). Usa la escala de hace driftLag ms (follow-through).
+    const s = WaveScale(k, t, d.wave, shift) * grow;
+    const sLag = WaveScale(k, t, d.wave, shift, MOTION === 'old' ? 0 : PULSE.driftLag) * grow;
+    const dr = DotDrift(sLag);
     cx += d.ux * dr; cyd += d.uy * dr;
     const dw = DOT_D * kk * s, el = $(d.id);
     el.style.width = el.style.height = N(dw) + 'px';
@@ -497,12 +524,7 @@ $('tick').onchange = e => tick = +e.target.value;
 $('scrub').oninput = e => { t = +e.target.value; playing = false; $('btnPlay').textContent = '▶ Play'; };
 $('chkImg').onchange = e => { asImg = e.target.checked; for (const key in cache) delete cache[key]; };
 $('chkGuides').onchange = e => document.body.classList.toggle('guides', e.target.checked);
-$('inCurve').oninput = e => {
-  const v = e.target.value.split(',').map(Number);
-  const ok = v.length === 4 && v.every(Number.isFinite);
-  e.target.style.borderColor = ok ? '' : '#F40008';
-  if (ok) DOT_CURVE = v;
-};
+$('selMotion').onchange = e => { MOTION = e.target.value; };
 $('inDrift').oninput = e => { const v = +e.target.value; if (Number.isFinite(v)) DOT_DRIFT = Math.max(0, v); };
 $('inReady').oninput = e => { readyAtMs = Math.max(0, +e.target.value || 0) * 1000; };
 

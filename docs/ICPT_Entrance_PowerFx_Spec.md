@@ -31,9 +31,9 @@ Errores de la v2 contra el video, ya corregidos en v3:
 | Las letras bajan desde arriba con fade | Las letras suben desde abajo a través de una máscara (línea de corte en la baseline) |
 | Nombre con colores cíclicos por letra (rojo, naranja, amarillo…) | Nombre con un gradiente continuo: menta → amarillo → naranja → rojo |
 | Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 135 ms entre puntos. |
-| Pulso simple 1 → 1.4 → 1 | Anticipación: 1 → 0.8 (160 ms) → 2.1 (160 ms) → pico 50 ms → 1 (160 ms). Cada tramo con `cubic-bezier(0.5, 0, 0.5, 1)`. |
+| Pulso simple 1 → 1.4 → 1 | Anticipación 1 → 0.8 (150 ms, `cubic-bezier(0.45, 0, 0.55, 1)`) → 2.1 (190 ms, `cubic-bezier(0.4, 0.25, 0.2, 1)`) → resorte amortiguado de vuelta a 1 (baja a ~93 % y se asienta). Sin pausas. |
 | Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~13 px del centro de la bombilla (máximo en el 210 %, vuelve a 0 en el 100 %) sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
-| La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola. Los puntos no flotan. |
+| La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola, en una onda continua (baja rápido, sube lento, sin pausas). Los puntos no flotan. |
 | El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño. Sube 15 px. |
 | El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
 | Loop infinito | Termina y navega a la app (`Navigate(…, ScreenTransition.Fade)`) |
@@ -89,9 +89,10 @@ Lay = {
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
     DotDrift: 5,        // separación máxima sobre el rayo, unidades del SVG (≈ 13 px)
-    // Curva del pulso: cubic-bezier(x1, y1, x2, y2), mismos valores que en Figma
-    CurveX1: 0.5, CurveY1: 0, CurveX2: 0.5, CurveY2: 1,
-    PulseShrink: 160, PulseGrow: 160, PulseHold: 50, PulseBack: 160,
+    // Pulso (ms). Las curvas bezier están dentro de DotScale.
+    PulseShrink: 150, PulseGrow: 190, PulseSpring: 360,
+    SpringDecay: 70, SpringPeriod: 380,   // resorte: baja a ~93 % y se asienta en ~300 ms
+    DriftLag: 50,                         // la separación va 50 ms detrás de la escala (follow-through)
     BulbFloat: 3.5,     // flote de la bombilla, px hacia abajo
     TxtSize: 36,
     WelcomeBase: 33,    // baselines respecto del centro vertical
@@ -150,33 +151,33 @@ CubicBezier(p: Number, x1: Number, y1: Number, x2: Number, y2: Number): Number =
             With({cy: 3 * y1, by: 3 * (y2 - y1) - 3 * y1},
                 ((1 - cy - by) * t + by) * t * t + cy * t)));
 
-DotEase(p: Number): Number = CubicBezier(p, Lay.CurveX1, Lay.CurveY1, Lay.CurveX2, Lay.CurveY2);
+// Resorte amortiguado (0..1 -> 0). Sale con velocidad 0, pasa un poco por debajo de 0 y se asienta.
+Spring(tau: Number, decay: Number, period: Number): Number =
+    With({w: 2 * Pi() / period},
+        Exp(-tau / decay) * (Cos(w * tau) + Sin(w * tau) / (w * decay)));
 
-// Pulso de un punto (530 ms). u = ms desde que empieza el pulso de ESE punto.
-// 1 -> 0.8 (anticipación) -> 2.1 -> pico -> 1. Cada tramo con DotEase.
+// Pulso orgánico de un punto (700 ms). u = ms desde que empieza el pulso de ESE punto.
+// 1 -> 0.8 (anticipación, ease-in-out) -> 2.1 (arranca suave, centro rápido, llega suave) -> resorte -> 1.
+// Sin pausas: la velocidad es continua en todo el pulso.
 DotScale(u: Number): Number =
     With({a: Lay.PulseShrink, b: Lay.PulseShrink + Lay.PulseGrow,
-          c: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseHold,
-          d: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseHold + Lay.PulseBack},
+          d: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseSpring},
         If(u <= 0 || u >= d, 1,
-           u < a, 1 - 0.2 * DotEase(u / Lay.PulseShrink),
-           u < b, 0.8 + (Lay.DotPeak - 0.8) * DotEase((u - a) / Lay.PulseGrow),
-           u < c, Lay.DotPeak,
-           Lay.DotPeak - (Lay.DotPeak - 1) * DotEase((u - c) / Lay.PulseBack)));
+           u < a, 1 - 0.2 * CubicBezier(u / a, 0.45, 0, 0.55, 1),
+           u < b, 0.8 + (Lay.DotPeak - 0.8) * CubicBezier((u - a) / Lay.PulseGrow, 0.4, 0.25, 0.2, 1),
+           1 + (Lay.DotPeak - 1) * Spring(u - b, Lay.SpringDecay, Lay.SpringPeriod)));
 
 // Separación sobre el rayo (unidades del SVG). Máxima en el 210 %, 0 en el 100 %. En la anticipación (s < 1) es 0.
 DotDrift(s: Number): Number = Lay.DotDrift * Max(0, s - 1) / (Lay.DotPeak - 1);
 
 // Flote de la bombilla (px hacia abajo). Un ciclo por ola; empieza 17 % del período antes de la ola.
-// Baja rápido (24 %), queda abajo (21 %), sube lento (28 %), reposo (27 %).
+// Una sola onda continua, sin pausas: sin² con el tiempo deformado (u^0.7).
+// Baja en el 37 % del ciclo y sube en el 63 % restante.
 BulbFloat(t: Number, shift: Number): Number =
     With({w: t - (TL.waveAt - 0.17 * TL.period)},
         If(w < 0 || w >= (TL.waves + shift / TL.period) * TL.period, 0,
             With({u: Mod(w, TL.period) / TL.period},
-                If(u < 0.24, Lay.BulbFloat * EaseInOut(u / 0.24),
-                   u < 0.45, Lay.BulbFloat,
-                   u < 0.73, Lay.BulbFloat * (1 - EaseInOut((u - 0.45) / 0.28)),
-                   0))));
+                Lay.BulbFloat * Power(Sin(Pi() * Power(u, 0.7)), 2))));
 
 // Ciclos extra si los datos no están listos. readyAt = -1 => todavía cargando.
 SplashShift(t: Number, readyAt: Number): Number =
@@ -184,6 +185,7 @@ SplashShift(t: Number, readyAt: Number): Number =
         Max(0, RoundUp((r - TL.w1Out) / TL.period, 0)) * TL.period);
 
 // Escala de un punto. order: LB=0, LT=1, Top=2, RT=3, RB=4.
+// Para la separación con follow-through, llamar con t - Lay.DriftLag.
 WaveScale(t: Number, order: Number, shift: Number): Number =
     With({w: t - TL.waveAt},
         If(w < 0, 1,
@@ -323,9 +325,9 @@ Variantes A / B:
 ```powerfx
 Width  = Lay.DotD * Lay.K * WaveScale(varT, 0, varShift)
 Height = Self.Width
-// s = Self.Width / (Lay.DotD * Lay.K) es la escala actual; el punto se aleja DotDrift(s) sobre su rayo
-X      = Lay.LogoPad + (2.48  + -0.807 * DotDrift(Self.Width / (Lay.DotD * Lay.K))) * Lay.K - Self.Width / 2
-Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(Self.Width / (Lay.DotD * Lay.K))) * Lay.K - Self.Height / 2
+// La separación usa la escala de hace Lay.DriftLag ms (follow-through): el punto "arrastra" un poco.
+X      = Lay.LogoPad + (2.48  + -0.807 * DotDrift(WaveScale(varT - Lay.DriftLag, 0, varShift))) * Lay.K - Self.Width / 2
+Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(WaveScale(varT - Lay.DriftLag, 0, varShift))) * Lay.K - Self.Height / 2
 Fill   = RGBA(242, 193, 43, varLogoAlpha)
 ```
 
