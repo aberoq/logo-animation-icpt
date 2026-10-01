@@ -72,9 +72,9 @@
 
 <div id="bar">
   <div class="row">
-    <button data-v="A" class="on">A · Fiel al video (≈11 s)</button>
+    <button data-v="A">A · Fiel al video (≈11 s)</button>
     <button data-v="B">B · Compacta (≈6 s)</button>
-    <button data-v="C">C · Orbit + compacta (≈6 s)</button>
+    <button data-v="C" class="on">C · Orbit + compacta (≈6 s)</button>
     <button id="btnPlay">⏸ Pausa</button>
     <button id="btnReplay">↺ Reiniciar</button>
     <select id="speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select>
@@ -90,8 +90,8 @@
     <label><span class="dyn">DINÁMICO</span> Nombre <input class="field" id="inName"></label>
     <label><span class="dyn">DINÁMICO</span> OU <input class="field" id="inOU" style="width:150px"></label>
     <label><span class="dyn">DINÁMICO</span> Versión <input class="field" id="inVer" style="width:70px"></label>
-    <label>Movimiento <select id="selMotion"><option value="organic">Orgánico (resorte)</option><option value="old">Anterior (bezier 0.5, 0, 0.5, 1)</option></select></label>
-    <label>Separación <input class="field" id="inDrift" type="number" min="0" max="10" step="0.5" style="width:64px" value="5"></label>
+    <label>Movimiento <select id="selMotion"><option value="fluid">Fluido (como la entrada)</option><option value="organic">Orgánico (resorte)</option><option value="old">Anterior (bezier 0.5, 0, 0.5, 1)</option></select></label>
+    <label>Separación <input class="field" id="inDrift" type="number" min="0" max="10" step="0.5" style="width:64px" value="3.5"></label>
     <label>Datos listos a los <input class="field" id="inReady" type="number" min="0" step="0.5" style="width:70px" value="0"> s</label>
   </div>
 </div>
@@ -161,8 +161,18 @@ const ORBIT_C = {x:19, y:18.5};   // centro de giro para la variante C
 const ASTER_C = {x:19, y:19};
 for (const d of DOTS){ const dx = d.cx - ASTER_C.x, dy = d.cy - ASTER_C.y, r = Math.hypot(dx, dy); d.ux = dx / r; d.uy = dy / r; }
 const DOT_PEAK = 2.1;    // escala máxima del pulso (video: 15 px -> 31 px)
-let DOT_DRIFT = 5;       // separación máxima sobre el rayo, en unidades del SVG (≈ 13 px). Editable en la barra.
-let MOTION = 'organic';  // 'organic' = curvas nuevas + resorte; 'old' = versión anterior, para comparar
+let DOT_DRIFT = 3.5;     // separación máxima sobre el rayo, en unidades del SVG (≈ 9 px). Editable en la barra.
+let MOTION = 'fluid';    // 'fluid' = seguimiento con resorte crítico (default); 'organic' y 'old' = versiones anteriores, para comparar
+/* Modo fluido: cada punto "persigue" un objetivo que salta 1 -> lo -> hi -> 1, con un resorte de
+   amortiguamiento crítico. La respuesta R(x) = 1 - (1 + x/tau)·e^(-x/tau) es una curva ease-out
+   (la misma familia que la entrada orbit) con velocidad 0 al arrancar => velocidad continua siempre.
+   lo / hi están calculados para que el punto toque exactamente 80 % y 210 %. */
+const FLUID = {
+  tau: 65, lo: 0.6871, hi: 2.5997, a: 140, b: 300,    // escala: mín 0.80 a los 143 ms, pico 2.10 a los 317 ms, fin ~810 ms
+  driftTau: 80, driftNorm: 0.6323,                     // separación: más lenta que la escala => follow-through natural
+  floatTau: 0.09, floatUp: 0.3, floatNorm: 0.8525,     // flote de la bombilla, en fracciones del período de ola
+};
+const Follow = (x, tau) => x <= 0 ? 0 : 1 - (1 + x / tau) * Math.exp(-x / tau);
 // Pulso orgánico: anticipación -> crecimiento -> resorte. Curvas en formato cubic-bezier (igual que Figma).
 const PULSE = {
   shrink: 150, shrinkCurve: [0.45, 0, 0.55, 1],   // 1 -> 0.8, suave en los dos extremos
@@ -183,7 +193,7 @@ const TL = {
     orbit:false, logoInDur:300,
     w1In:30,  w1Stag:25, w1Dur:220,
     nmIn:250, nmStag:12, nmDur:380,
-    waveAt:1200, period:1450, waves:4, step:135, breath:0.35,
+    waveAt:1200, period:1450, waves:4, step:110, breath:0.35,
     w1Out:6830, w1OutStag:25, w1OutDur:200,
     nmOut:7080, nmOutStag:10, nmOutDur:330,
     logoUpAt:8100, logoUpDur:260,
@@ -196,7 +206,7 @@ const TL = {
     orbit:false, logoInDur:300,
     w1In:30,  w1Stag:22, w1Dur:200,
     nmIn:200, nmStag:10, nmDur:320,
-    waveAt:800, period:1300, waves:2, step:120, breath:0.25,
+    waveAt:800, period:1300, waves:2, step:95, breath:0.25,
     w1Out:3300, w1OutStag:22, w1OutDur:180,
     nmOut:3480, nmOutStag:9, nmOutDur:300,
     logoUpAt:3950, logoUpDur:240,
@@ -209,7 +219,7 @@ const TL = {
     orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
     w1In:780, w1Stag:22, w1Dur:200,
     nmIn:950, nmStag:10, nmDur:320,
-    waveAt:1700, period:1300, waves:1, step:120, breath:0.25,
+    waveAt:1700, period:1300, waves:1, step:95, breath:0.25,
     w1Out:2950, w1OutStag:22, w1OutDur:180,
     nmOut:3130, nmOutStag:9, nmOutDur:300,
     logoUpAt:3600, logoUpDur:240,
@@ -256,6 +266,11 @@ function Spring(tau, decay, period){
 // Pulso orgánico (680 ms): 1 -> 0.8 (anticipación) -> 2.1 -> resorte -> 1. Sin pausas.
 function DotScale(u){
   if (MOTION === 'old') return DotScaleOld(u);
+  if (MOTION === 'fluid'){
+    const F = FLUID;
+    if (u <= 0 || u >= F.b + 12 * F.tau) return 1;
+    return 1 + (F.lo - 1) * Follow(u, F.tau) + (F.hi - F.lo) * Follow(u - F.a, F.tau) + (1 - F.hi) * Follow(u - F.b, F.tau);
+  }
   const P = PULSE, a = P.shrink, b = a + P.grow, d = b + P.spring;
   if (u <= 0 || u >= d) return 1;
   if (u < a) return 1 - 0.2 * CubicBezier(u / a, ...P.shrinkCurve);
@@ -277,6 +292,9 @@ function DotScaleOld(u){
 // Separación sobre el rayo: es máxima cuando la escala llega a 2.1 y vuelve a 0 cuando el punto vuelve a 100 %.
 // No entra hacia el centro durante la anticipación.
 const DotDrift = s => DOT_DRIFT * Math.max(0, s - 1) / (DOT_PEAK - 1);
+// Modo fluido: la separación tiene su propio seguimiento (sale en "a", vuelve en "b"), más lento que la escala.
+const DotDriftFluid = u => u <= 0 ? 0
+  : DOT_DRIFT * Math.max(0, Follow(u - FLUID.a, FLUID.driftTau) - Follow(u - FLUID.b, FLUID.driftTau)) / FLUID.driftNorm;
 
 // Flote de la bombilla: un ciclo por ola, empieza 17 % del período antes de la ola.
 // Orgánico: una sola onda continua, sin pausas. sin² con el tiempo deformado (u^0.7):
@@ -286,6 +304,8 @@ function BulbFloat(k, t, shift){
   const count = k.waves + shift / P;
   if (w < 0 || w >= count * P) return 0;
   const u = (w % P) / P;
+  if (MOTION === 'fluid')   // baja y sube con el mismo seguimiento crítico que los puntos
+    return BULB_FLOAT * Math.max(0, Follow(u, FLUID.floatTau) - Follow(u - FLUID.floatUp, FLUID.floatTau)) / FLUID.floatNorm;
   if (MOTION !== 'old') return BULB_FLOAT * Math.pow(Math.sin(Math.PI * Math.pow(u, 0.7)), 2);
   if (u < 0.24) return BULB_FLOAT * EaseInOut(u / 0.24);
   if (u < 0.45) return BULB_FLOAT;
@@ -299,14 +319,16 @@ function Shift(k, t, readyAt){
   return Math.max(0, Math.ceil((r - k.w1Out) / k.period)) * k.period;
 }
 
-// Escala de un punto en la fase de olas.
-function WaveScale(k, t, order, shift, lag = 0){
+// Tiempo local del pulso de un punto (ms desde que empieza SU pulso en la ola actual); -1 antes de la primera ola.
+function WaveLocal(k, t, order, shift){
   const w = t - k.waveAt;
-  if (w < 0) return 1;
+  if (w < 0) return -1;
   const count = k.waves + shift / k.period;
   const idx = Math.min(Math.floor(w / k.period), count - 1);
-  return DotScale(t - lag - (k.waveAt + idx * k.period + order * k.step));
+  return t - (k.waveAt + idx * k.period + order * k.step);
 }
+// Escala de un punto en la fase de olas.
+const WaveScale = (k, t, order, shift, lag = 0) => DotScale(WaveLocal(k, t - lag, order, shift));
 
 // "Respiración" del texto: baja la opacidad en las olas 2..n (en el video empieza 130 ms antes de la ola).
 function Breath(k, t, shift){
@@ -361,7 +383,7 @@ const BULB_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 39.07'
 
 $('bulb').src = 'data:image/svg+xml;utf8,' + encodeURIComponent(BULB_SVG);
 
-let variant = 'A', asImg = false, readyAtMs = 0;
+let variant = 'C', asImg = false, readyAtMs = 0;
 const cache = {};   // evita reescribir el DOM si el SVG no cambió
 
 function setTxt(el, svg){
@@ -408,8 +430,9 @@ function render(t){
     }
     // Se aleja del centro sobre su rayo ("asterisco"). Usa la escala de hace driftLag ms (follow-through).
     const s = WaveScale(k, t, d.wave, shift) * grow;
-    const sLag = WaveScale(k, t, d.wave, shift, MOTION === 'old' ? 0 : PULSE.driftLag) * grow;
-    const dr = DotDrift(sLag);
+    const dr = MOTION === 'fluid'
+      ? DotDriftFluid(WaveLocal(k, t, d.wave, shift)) * grow
+      : DotDrift(WaveScale(k, t, d.wave, shift, MOTION === 'old' ? 0 : PULSE.driftLag) * grow);
     cx += d.ux * dr; cyd += d.uy * dr;
     const dw = DOT_D * kk * s, el = $(d.id);
     el.style.width = el.style.height = N(dw) + 'px';

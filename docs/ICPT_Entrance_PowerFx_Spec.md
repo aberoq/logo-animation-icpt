@@ -30,10 +30,10 @@ Errores de la v2 contra el video, ya corregidos en v3:
 |---|---|
 | Las letras bajan desde arriba con fade | Las letras suben desde abajo a través de una máscara (línea de corte en la baseline) |
 | Nombre con colores cíclicos por letra (rojo, naranja, amarillo…) | Nombre con un gradiente continuo: menta → amarillo → naranja → rojo |
-| Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 135 ms entre puntos. |
-| Pulso simple 1 → 1.4 → 1 | Anticipación 1 → 0.8 (150 ms, `cubic-bezier(0.45, 0, 0.55, 1)`) → 2.1 (190 ms, `cubic-bezier(0.4, 0.25, 0.2, 1)`) → resorte amortiguado de vuelta a 1 (baja a ~93 % y se asienta). Sin pausas. |
+| Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 110 ms entre puntos en A, 95 ms en B y C (más superposición = se lee como una sola ola). |
+| Pulso simple 1 → 1.4 → 1 | 1 → 0.8 → 2.1 → 1 en ~810 ms. El punto sigue un objetivo con un resorte de amortiguamiento crítico (`Follow`), la misma curva ease-out de la entrada orbit. Velocidad continua: sin pausas ni quiebres. |
 | Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~13 px del centro de la bombilla (máximo en el 210 %, vuelve a 0 en el 100 %) sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
-| La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola, en una onda continua (baja rápido, sube lento, sin pausas). Los puntos no flotan. |
+| La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola, con el mismo `Follow` que los puntos (baja rápido, sube con una cola larga). Los puntos no flotan. |
 | El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño. Sube 15 px. |
 | El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
 | Loop infinito | Termina y navega a la app (`Navigate(…, ScreenTransition.Fade)`) |
@@ -77,7 +77,7 @@ AppVersion     = "4.1";                // Constante por release. Se muestra como
 // =====================================================================
 // Variante activa. Idea: "A" la primera vez del día, "B" las siguientes.
 // =====================================================================
-SplashVariant = "A";
+SplashVariant = "C";   // favorita actual: Orbit + compacta
 
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
@@ -88,11 +88,12 @@ Lay = {
     LogoUp: 15,
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
-    DotDrift: 5,        // separación máxima sobre el rayo, unidades del SVG (≈ 13 px)
+    DotDrift: 3.5,      // separación máxima sobre el rayo, unidades del SVG (≈ 9 px)
     // Pulso (ms). Las curvas bezier están dentro de DotScale.
-    PulseShrink: 150, PulseGrow: 190, PulseSpring: 360,
-    SpringDecay: 70, SpringPeriod: 380,   // resorte: baja a ~93 % y se asienta en ~300 ms
-    DriftLag: 50,                         // la separación va 50 ms detrás de la escala (follow-through)
+    // Pulso fluido (ver DotScale). Los valores lo / hi salen de un cálculo: no cambiar uno sin el otro.
+    PulseTau: 65, PulseLo: 0.6871, PulseHi: 2.5997, PulseA: 140, PulseB: 300,
+    DriftTau: 80, DriftNorm: 0.6323,      // separación: seguimiento más lento => follow-through
+    FloatTau: 0.09, FloatNorm: 0.8525,    // flote de la bombilla (fracciones del período de ola)
     BulbFloat: 3.5,     // flote de la bombilla, px hacia abajo
     TxtSize: 36,
     WelcomeBase: 33,    // baselines respecto del centro vertical
@@ -107,20 +108,20 @@ Lay = {
 TL = Switch(SplashVariant,
     "A", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 25, w1Dur: 220, nmIn: 250, nmStag: 12, nmDur: 380,
-          waveAt: 1200, period: 1450, waves: 4, step: 135, breath: 0.35,
+          waveAt: 1200, period: 1450, waves: 4, step: 110, breath: 0.35,
           w1Out: 6830, w1OutStag: 25, w1OutDur: 200, nmOut: 7080, nmOutStag: 10, nmOutDur: 330,
           logoUpAt: 8100, logoUpDur: 260, wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
           outAt: 10080, wmOutDur: 100, logoOutDur: 250, navAt: 10780},
     "B", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 22, w1Dur: 200, nmIn: 200, nmStag: 10, nmDur: 320,
-          waveAt: 800, period: 1300, waves: 2, step: 120, breath: 0.25,
+          waveAt: 800, period: 1300, waves: 2, step: 95, breath: 0.25,
           w1Out: 3300, w1OutStag: 22, w1OutDur: 180, nmOut: 3480, nmOutStag: 9, nmOutDur: 300,
           logoUpAt: 3950, logoUpDur: 240, wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
           outAt: 5500, wmOutDur: 120, logoOutDur: 250, navAt: 5950},
     /* "C" */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
-          waveAt: 1700, period: 1300, waves: 1, step: 120, breath: 0.25,
+          waveAt: 1700, period: 1300, waves: 1, step: 95, breath: 0.25,
           w1Out: 2950, w1OutStag: 22, w1OutDur: 180, nmOut: 3130, nmOutStag: 9, nmOutDur: 300,
           logoUpAt: 3600, logoUpDur: 240, wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
           outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600}
@@ -136,61 +137,46 @@ EaseIn(p: Number): Number = Power(Clamp01(p), 3);
 EaseInOut(p: Number): Number = With({q: Clamp01(p)}, If(q < 0.5, 4 * Power(q, 3), 1 - Power(-2 * q + 2, 3) / 2));
 N(x: Number): Text = Text(Round(x, 2), "0.##", "en-US");
 
-// Un paso de Newton para resolver x(t) = x de una cubic-bezier.
-BezStep(t: Number, x: Number, x1: Number, x2: Number): Number =
-    With({cx: 3 * x1, bx: 3 * (x2 - x1) - 3 * x1},
-        With({ax: 1 - cx - bx},
-            With({fx: ((ax * t + bx) * t + cx) * t - x, dx: (3 * ax * t + 2 * bx) * t + cx},
-                If(Abs(dx) > 0.000001, Clamp01(t - fx / dx), t))));
+// Seguimiento con resorte de amortiguamiento crítico: 0 -> 1, curva ease-out con velocidad 0 al arrancar.
+// Es la misma familia de curva que la entrada orbit. Sumar varios Follow desfasados da un movimiento
+// con velocidad continua siempre (no hay quiebres entre tramos).
+Follow(x: Number, tau: Number): Number = If(x <= 0, 0, 1 - (1 + x / tau) * Exp(-x / tau));
 
-// cubic-bezier(x1, y1, x2, y2), igual que en Figma / CSS. 5 pasos de Newton fijos (sin loops).
-// Error < 0.00001 frente a la curva exacta con curvas tipo ease-in-out.
-CubicBezier(p: Number, x1: Number, y1: Number, x2: Number, y2: Number): Number =
-    With({x: Clamp01(p)},
-        With({t: BezStep(BezStep(BezStep(BezStep(BezStep(x, x, x1, x2), x, x1, x2), x, x1, x2), x, x1, x2), x, x1, x2)},
-            With({cy: 3 * y1, by: 3 * (y2 - y1) - 3 * y1},
-                ((1 - cy - by) * t + by) * t * t + cy * t)));
-
-// Resorte amortiguado (0..1 -> 0). Sale con velocidad 0, pasa un poco por debajo de 0 y se asienta.
-Spring(tau: Number, decay: Number, period: Number): Number =
-    With({w: 2 * Pi() / period},
-        Exp(-tau / decay) * (Cos(w * tau) + Sin(w * tau) / (w * decay)));
-
-// Pulso orgánico de un punto (700 ms). u = ms desde que empieza el pulso de ESE punto.
-// 1 -> 0.8 (anticipación, ease-in-out) -> 2.1 (arranca suave, centro rápido, llega suave) -> resorte -> 1.
-// Sin pausas: la velocidad es continua en todo el pulso.
+// Pulso de un punto (~810 ms). u = ms desde que empieza el pulso de ESE punto.
+// El objetivo salta 1 -> lo (0 ms) -> hi (a) -> 1 (b) y el punto lo sigue con Follow.
+// lo / hi están calculados para tocar exactamente 0.80 (a los 143 ms) y 2.10 (a los 317 ms).
 DotScale(u: Number): Number =
-    With({a: Lay.PulseShrink, b: Lay.PulseShrink + Lay.PulseGrow,
-          d: Lay.PulseShrink + Lay.PulseGrow + Lay.PulseSpring},
-        If(u <= 0 || u >= d, 1,
-           u < a, 1 - 0.2 * CubicBezier(u / a, 0.45, 0, 0.55, 1),
-           u < b, 0.8 + (Lay.DotPeak - 0.8) * CubicBezier((u - a) / Lay.PulseGrow, 0.4, 0.25, 0.2, 1),
-           1 + (Lay.DotPeak - 1) * Spring(u - b, Lay.SpringDecay, Lay.SpringPeriod)));
+    If(u <= 0 || u >= Lay.PulseB + 12 * Lay.PulseTau, 1,
+        1 + (Lay.PulseLo - 1)            * Follow(u, Lay.PulseTau)
+          + (Lay.PulseHi - Lay.PulseLo)  * Follow(u - Lay.PulseA, Lay.PulseTau)
+          + (1 - Lay.PulseHi)            * Follow(u - Lay.PulseB, Lay.PulseTau));
 
-// Separación sobre el rayo (unidades del SVG). Máxima en el 210 %, 0 en el 100 %. En la anticipación (s < 1) es 0.
-DotDrift(s: Number): Number = Lay.DotDrift * Max(0, s - 1) / (Lay.DotPeak - 1);
+// Separación sobre el rayo (unidades del SVG). Sale en "a" y vuelve en "b", con un seguimiento
+// más lento que la escala (DriftTau > PulseTau): eso da el follow-through sin un retraso artificial.
+DotDrift(u: Number): Number =
+    If(u <= 0, 0,
+        Lay.DotDrift * Max(0, Follow(u - Lay.PulseA, Lay.DriftTau) - Follow(u - Lay.PulseB, Lay.DriftTau)) / Lay.DriftNorm);
 
 // Flote de la bombilla (px hacia abajo). Un ciclo por ola; empieza 17 % del período antes de la ola.
-// Una sola onda continua, sin pausas: sin² con el tiempo deformado (u^0.7).
-// Baja en el 37 % del ciclo y sube en el 63 % restante.
+// Baja con Follow y sube con Follow (al 30 % del ciclo). Mismo lenguaje de movimiento que los puntos.
 BulbFloat(t: Number, shift: Number): Number =
     With({w: t - (TL.waveAt - 0.17 * TL.period)},
         If(w < 0 || w >= (TL.waves + shift / TL.period) * TL.period, 0,
             With({u: Mod(w, TL.period) / TL.period},
-                Lay.BulbFloat * Power(Sin(Pi() * Power(u, 0.7)), 2))));
+                Lay.BulbFloat * Max(0, Follow(u, Lay.FloatTau) - Follow(u - 0.3, Lay.FloatTau)) / Lay.FloatNorm)));
 
 // Ciclos extra si los datos no están listos. readyAt = -1 => todavía cargando.
 SplashShift(t: Number, readyAt: Number): Number =
     With({r: If(readyAt < 0, t + TL.period, readyAt)},
         Max(0, RoundUp((r - TL.w1Out) / TL.period, 0)) * TL.period);
 
-// Escala de un punto. order: LB=0, LT=1, Top=2, RT=3, RB=4.
-// Para la separación con follow-through, llamar con t - Lay.DriftLag.
-WaveScale(t: Number, order: Number, shift: Number): Number =
+// Tiempo local del pulso de un punto en la ola actual (-1 antes de la primera ola).
+// order: LB=0, LT=1, Top=2, RT=3, RB=4.
+WaveLocal(t: Number, order: Number, shift: Number): Number =
     With({w: t - TL.waveAt},
-        If(w < 0, 1,
+        If(w < 0, -1,
             With({idx: Min(RoundDown(w / TL.period, 0), TL.waves + shift / TL.period - 1)},
-                DotScale(t - (TL.waveAt + idx * TL.period + order * TL.step)))));
+                t - (TL.waveAt + idx * TL.period + order * TL.step))));
 
 // Respiración del texto (0..1), desde la ola 2.
 Breath(t: Number, shift: Number): Number =
@@ -323,11 +309,10 @@ Datos de cada punto (unidades del SVG):
 
 Variantes A / B:
 ```powerfx
-Width  = Lay.DotD * Lay.K * WaveScale(varT, 0, varShift)
+Width  = Lay.DotD * Lay.K * DotScale(WaveLocal(varT, 0, varShift))
 Height = Self.Width
-// La separación usa la escala de hace Lay.DriftLag ms (follow-through): el punto "arrastra" un poco.
-X      = Lay.LogoPad + (2.48  + -0.807 * DotDrift(WaveScale(varT - Lay.DriftLag, 0, varShift))) * Lay.K - Self.Width / 2
-Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(WaveScale(varT - Lay.DriftLag, 0, varShift))) * Lay.K - Self.Height / 2
+X      = Lay.LogoPad + (2.48  + -0.807 * DotDrift(WaveLocal(varT, 0, varShift))) * Lay.K - Self.Width / 2
+Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(WaveLocal(varT, 0, varShift))) * Lay.K - Self.Height / 2
 Fill   = RGBA(242, 193, 43, varLogoAlpha)
 ```
 
@@ -407,7 +392,7 @@ RadiusTopLeft = 6   // y los otros tres
 | 0 | Corte a negro. El logo aparece (fade 150 ms) y sube 10 px (300 ms). |
 | 30 → 400 | "Welcome" letra por letra (stagger 25 ms, 220 ms por letra, sin fade). |
 | 250 → ≈ 800 | Nombre letra por letra, con fade (stagger 12 ms, 380 ms). El final depende del largo del nombre. |
-| 1200, 2650, 4100, 5550 | 4 olas. Cada una: LB → LT → Top → RT → RB, cada 135 ms. La bombilla flota un ciclo por ola. |
+| 1200, 2650, 4100, 5550 | 4 olas. Cada una: LB → LT → Top → RT → RB, cada 110 ms. La bombilla flota un ciclo por ola. |
 | 2520 → 6420 | El texto respira (opacidad mín. 0.65) en las olas 2 a 4. |
 | 6830 → 7180 | "Welcome" baja y sale por la máscara. |
 | 7080 → ≈ 7530 | El nombre baja y sale, con fade. |
