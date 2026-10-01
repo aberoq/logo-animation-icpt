@@ -16,7 +16,7 @@ Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps,
 | 4 | Texto con gradiente (`background-clip:text`) | Un Label solo tiene un color sólido. | `linearGradient` dentro del SVG (`objectBoundingBox`: se adapta al ancho de cualquier nombre). |
 | 5 | Cadena de `setTimeout` + `transition` CSS | No existe. Además, los tiempos se desfasan entre sí. | Un Timer y una variable de tiempo real. Todo es función pura de `varT`. Easing escrito como fórmula. |
 | 6 | Opacidad del grupo del logo | Un Container no tiene `Transparency`. | Opacidad por control: `Image.Transparency` en el bulbo, `RGBA(r,g,b,alpha)` en cada Circle. |
-| 7 | Puntos que crecen a 1.7× | Un Container recorta a sus hijos. El punto izquierdo al 1.7× sale 4.4 px del borde y se corta. | El Container del logo tiene 14 px de padding en cada lado (`LogoPad`). |
+| 7 | Puntos que crecen a 2.1× y se separan del bulbo | Un Container recorta a sus hijos. En el pico, el punto de arriba y los de la izquierda salen hasta 15 px del borde y se cortan. | El Container del logo tiene 18 px de padding en cada lado (`LogoPad`). |
 | 8 | Timer que suma `varT + 30` en cada tick | El Timer no es preciso (jitter, pestaña en segundo plano). La animación se atrasa. | `varT = DateDiff(varT0, Now(), TimeUnit.Milliseconds)`. Si un tick se atrasa, el siguiente cuadro igual es correcto. |
 | 9 | Números dentro del SVG | `Text(12.5)` en un tenant es-CO / es-MX da `"12,5"` y el SVG se rompe. | `N(x) = Text(Round(x, 2), "0.##", "en-US")`. Siempre con `"en-US"`. |
 | 10 | Fuente del wordmark (geométrica ancha, parecida a Montserrat Bold) | Un SVG dentro de un Image control se renderiza como imagen y **no carga fuentes web**. Solo usa fuentes del sistema. | Nombre y "Welcome": `Segoe UI` (sistema, en Windows). Wordmark: paths de Figma, una letra por `<g>` (pendiente, ver §8). |
@@ -30,8 +30,10 @@ Errores de la v2 contra el video, ya corregidos en v3:
 |---|---|
 | Las letras bajan desde arriba con fade | Las letras suben desde abajo a través de una máscara (línea de corte en la baseline) |
 | Nombre con colores cíclicos por letra (rojo, naranja, amarillo…) | Nombre con un gradiente continuo: menta → amarillo → naranja → rojo |
-| Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 120 ms entre puntos. |
-| Pulso simple 1 → 1.4 → 1 | Anticipación: 1 → 0.8 (100 ms) → 1.7 (160 ms) → mantiene 70 ms → 1 (190 ms) |
+| Pulso de los 6 elementos, base incluida, en orden p0…p5 | Solo los 5 puntos. Orden horario desde abajo a la izquierda: LB → LT → arriba → RT → RB. 135 ms entre puntos. |
+| Pulso simple 1 → 1.4 → 1 | Anticipación: 1 → 0.8 (100 ms) → 2.1 (130 ms) → pico 60 ms → 1 (120 ms) |
+| Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~8 px del centro de la bombilla sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
+| La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola. Los puntos no flotan. |
 | El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño. Sube 15 px. |
 | El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
 | Loop infinito | Termina y navega a la app (`Navigate(…, ScreenTransition.Fade)`) |
@@ -51,8 +53,8 @@ Controles:
 | Control | Tipo | Qué hace |
 |---|---|---|
 | `tmrSplash` | Timer | Reloj. `Visible = false`. |
-| `conLogo` | Container | Grupo del logo. Solo posición (Y animada). Padding 14 px. |
-| `imgBulb` | Image | Bulbo + base (`assets/icpt-bulb.svg`, en Media). Estático. |
+| `conLogo` | Container | Grupo del logo. Solo posición (Y animada). Padding 18 px. |
+| `imgBulb` | Image | Bulbo + base (`assets/icpt-bulb.svg`, en Media). Solo se mueve en Y (flote). |
 | `cirDotTop`, `cirDotLT`, `cirDotRT`, `cirDotLB`, `cirDotRB` | Circle | Los 5 puntos. Width/Height/X/Y animados. |
 | `imgWelcome`, `imgName` | Image | Saludo y nombre (`RevealSvg`). |
 | `imgWm1`, `imgWm2` | Image | "Investment" / "Prioritization Tool". |
@@ -80,11 +82,14 @@ SplashVariant = "A";
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
     K: 2.56,            // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 2.56 px
-    LogoPad: 14,
+    LogoPad: 18,
     LogoTop: -120,      // top del logo respecto del centro vertical
     LogoRise: 10,
     LogoUp: 15,
     DotD: 4.954,
+    DotPeak: 2.1,       // escala máxima del pulso
+    DotDrift: 3.2,      // separación máxima sobre el rayo, unidades del SVG (≈ 8 px)
+    BulbFloat: 3.5,     // flote de la bombilla, px hacia abajo
     TxtSize: 36,
     WelcomeBase: 33,    // baselines respecto del centro vertical
     NameBase: 71,
@@ -98,20 +103,20 @@ Lay = {
 TL = Switch(SplashVariant,
     "A", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 25, w1Dur: 220, nmIn: 250, nmStag: 12, nmDur: 380,
-          waveAt: 1200, period: 1450, waves: 4, step: 120, breath: 0.35,
+          waveAt: 1200, period: 1450, waves: 4, step: 135, breath: 0.35,
           w1Out: 6830, w1OutStag: 25, w1OutDur: 200, nmOut: 7080, nmOutStag: 10, nmOutDur: 330,
           logoUpAt: 8100, logoUpDur: 260, wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
           outAt: 10080, wmOutDur: 100, logoOutDur: 250, navAt: 10780},
     "B", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 22, w1Dur: 200, nmIn: 200, nmStag: 10, nmDur: 320,
-          waveAt: 800, period: 1300, waves: 2, step: 110, breath: 0.25,
+          waveAt: 800, period: 1300, waves: 2, step: 120, breath: 0.25,
           w1Out: 3300, w1OutStag: 22, w1OutDur: 180, nmOut: 3480, nmOutStag: 9, nmOutDur: 300,
           logoUpAt: 3950, logoUpDur: 240, wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
           outAt: 5500, wmOutDur: 120, logoOutDur: 250, navAt: 5950},
     /* "C" */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
-          waveAt: 1700, period: 1300, waves: 1, step: 110, breath: 0.25,
+          waveAt: 1700, period: 1300, waves: 1, step: 120, breath: 0.25,
           w1Out: 2950, w1OutStag: 22, w1OutDur: 180, nmOut: 3130, nmOutStag: 9, nmOutDur: 300,
           logoUpAt: 3600, logoUpDur: 240, wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
           outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600}
@@ -127,13 +132,28 @@ EaseIn(p: Number): Number = Power(Clamp01(p), 3);
 EaseInOut(p: Number): Number = With({q: Clamp01(p)}, If(q < 0.5, 4 * Power(q, 3), 1 - Power(-2 * q + 2, 3) / 2));
 N(x: Number): Text = Text(Round(x, 2), "0.##", "en-US");
 
-// Pulso de un punto (520 ms). u = ms desde que empieza el pulso de ESE punto.
+// Pulso de un punto (410 ms). u = ms desde que empieza el pulso de ESE punto.
+// 1 -> 0.8 (anticipación, 100 ms) -> 2.1 (130 ms) -> pico 60 ms -> 1 (120 ms)
 DotScale(u: Number): Number =
-    If(u <= 0 || u >= 520, 1,
+    If(u <= 0 || u >= 410, 1,
        u < 100, 1 - 0.2 * EaseInOut(u / 100),
-       u < 260, 0.8 + 0.9 * EaseOut((u - 100) / 160),
-       u < 330, 1.7,
-       1.7 - 0.7 * EaseInOut((u - 330) / 190));
+       u < 230, 0.8 + (Lay.DotPeak - 0.8) * EaseOut((u - 100) / 130),
+       u < 290, Lay.DotPeak,
+       Lay.DotPeak - (Lay.DotPeak - 1) * EaseInOut((u - 290) / 120));
+
+// Separación sobre el rayo (unidades del SVG). Sigue al crecimiento; en la anticipación (s < 1) es 0.
+DotDrift(s: Number): Number = Lay.DotDrift * Max(0, s - 1) / (Lay.DotPeak - 1);
+
+// Flote de la bombilla (px hacia abajo). Un ciclo por ola; empieza 17 % del período antes de la ola.
+// Baja rápido (24 %), queda abajo (21 %), sube lento (28 %), reposo (27 %).
+BulbFloat(t: Number, shift: Number): Number =
+    With({w: t - (TL.waveAt - 0.17 * TL.period)},
+        If(w < 0 || w >= (TL.waves + shift / TL.period) * TL.period, 0,
+            With({u: Mod(w, TL.period) / TL.period},
+                If(u < 0.24, Lay.BulbFloat * EaseInOut(u / 0.24),
+                   u < 0.45, Lay.BulbFloat,
+                   u < 0.73, Lay.BulbFloat * (1 - EaseInOut((u - 0.45) / 0.28)),
+                   0))));
 
 // Ciclos extra si los datos no están listos. readyAt = -1 => todavía cargando.
 SplashShift(t: Number, readyAt: Number): Number =
@@ -259,27 +279,30 @@ La opacidad común del logo está en `varLogoAlpha` (se calcula en `tmrSplash.On
 Width        = 38 * Lay.K * If(TL.orbit, 0.85 + 0.15 * EaseOut(Prog(varT, 0, TL.bulbInDur)), 1)
 Height       = Self.Width * 39.07 / 38
 X            = Lay.LogoPad + (38 * Lay.K - Self.Width) / 2
-Y            = Lay.LogoPad + (39.07 * Lay.K - Self.Height) / 2
+Y            = Lay.LogoPad + (39.07 * Lay.K - Self.Height) / 2 + BulbFloat(varT, varShift)   // solo la bombilla flota
 Transparency = 1 - varLogoAlpha * If(TL.orbit, Prog(varT, 0, TL.bulbInDur), 1)
 ```
 
 ### cirDot* (Circle). Ejemplo: cirDotLB
 Datos de cada punto (unidades del SVG):
 
-| Control | cx | cy | order | Color (video) | Color (SVG v2) |
-|---|---|---|---|---|---|
-| cirDotTop | 19.00 | 2.48 | 2 | `#F4330A` | `#F40008` |
-| cirDotLT | 2.48 | 12.02 | 1 | `#F40008` | `#FFA000` |
-| cirDotRT | 35.52 | 12.02 | 3 | `#6ED578` | `#64BEC2` |
-| cirDotLB | 2.48 | 31.09 | 0 | `#F2C12B` | `#F2C12B` |
-| cirDotRB | 35.52 | 31.09 | 4 | `#64BEC2` | `#6ED578` |
+`ux`, `uy` = dirección del rayo: vector unitario desde el centro del asterisco (19, 19) hasta el punto.
+
+| Control | cx | cy | ux | uy | order | Color (video) | Color (SVG v2) |
+|---|---|---|---|---|---|---|---|
+| cirDotTop | 19.00 | 2.48 | 0 | −1 | 2 | `#F4330A` | `#F40008` |
+| cirDotLT | 2.48 | 12.02 | −0.921 | −0.389 | 1 | `#F40008` | `#FFA000` |
+| cirDotRT | 35.52 | 12.02 | 0.921 | −0.389 | 3 | `#6ED578` | `#64BEC2` |
+| cirDotLB | 2.48 | 31.09 | −0.807 | 0.591 | 0 | `#F2C12B` | `#F2C12B` |
+| cirDotRB | 35.52 | 31.09 | 0.807 | 0.591 | 4 | `#64BEC2` | `#6ED578` |
 
 Variantes A / B:
 ```powerfx
 Width  = Lay.DotD * Lay.K * WaveScale(varT, 0, varShift)
 Height = Self.Width
-X      = Lay.LogoPad + 2.48 * Lay.K - Self.Width / 2
-Y      = Lay.LogoPad + 31.09 * Lay.K - Self.Height / 2
+// s = Self.Width / (Lay.DotD * Lay.K) es la escala actual; el punto se aleja DotDrift(s) sobre su rayo
+X      = Lay.LogoPad + (2.48  + -0.807 * DotDrift(Self.Width / (Lay.DotD * Lay.K))) * Lay.K - Self.Width / 2
+Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(Self.Width / (Lay.DotD * Lay.K))) * Lay.K - Self.Height / 2
 Fill   = RGBA(242, 193, 43, varLogoAlpha)
 ```
 
@@ -289,6 +312,7 @@ With({p: EaseOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, TL.orbitDur))},
      With({a: a0 + (1 - p) * Radians(TL.sweep)},
           /* X */ Lay.LogoPad + (19 + r * Cos(a)) * Lay.K - Self.Width / 2))
 // Y igual con 18.5 + r * Sin(a). Width multiplicado por p. Alpha × Clamp01(p * 3).
+// Sumar también el drift: + ux * DotDrift(s) en X, + uy * DotDrift(s) en Y (igual que A / B).
 ```
 
 ### imgWelcome (Image)
@@ -358,7 +382,7 @@ RadiusTopLeft = 6   // y los otros tres
 | 0 | Corte a negro. El logo aparece (fade 150 ms) y sube 10 px (300 ms). |
 | 30 → 400 | "Welcome" letra por letra (stagger 25 ms, 220 ms por letra, sin fade). |
 | 250 → ≈ 800 | Nombre letra por letra, con fade (stagger 12 ms, 380 ms). El final depende del largo del nombre. |
-| 1200, 2650, 4100, 5550 | 4 olas. Cada una: LB → LT → Top → RT → RB, cada 120 ms. |
+| 1200, 2650, 4100, 5550 | 4 olas. Cada una: LB → LT → Top → RT → RB, cada 135 ms. La bombilla flota un ciclo por ola. |
 | 2520 → 6420 | El texto respira (opacidad mín. 0.65) en las olas 2 a 4. |
 | 6830 → 7180 | "Welcome" baja y sale por la máscara. |
 | 7080 → ≈ 7530 | El nombre baja y sale, con fade. |

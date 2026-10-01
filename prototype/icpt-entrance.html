@@ -155,6 +155,12 @@ const DOTS = [
   {id:'dotRB',  cx:35.52, cy:31.09, wave:4},
 ];
 const ORBIT_C = {x:19, y:18.5};   // centro de giro para la variante C
+// Centro del "asterisco": cada punto se aleja de este centro sobre su propio rayo cuando crece.
+const ASTER_C = {x:19, y:19};
+for (const d of DOTS){ const dx = d.cx - ASTER_C.x, dy = d.cy - ASTER_C.y, r = Math.hypot(dx, dy); d.ux = dx / r; d.uy = dy / r; }
+const DOT_PEAK = 2.1;    // escala máxima del pulso (video: 15 px -> 31 px)
+const DOT_DRIFT = 3.2;   // separación máxima sobre el rayo, en unidades del SVG (≈ 8 px)
+const BULB_FLOAT = 3.5;  // flote de la bombilla, px hacia abajo
 
 /* ---------------------------------------------------------------------------------------
    Timelines (ms). t = 0 es el primer frame negro.
@@ -166,7 +172,7 @@ const TL = {
     orbit:false, logoInDur:300,
     w1In:30,  w1Stag:25, w1Dur:220,
     nmIn:250, nmStag:12, nmDur:380,
-    waveAt:1200, period:1450, waves:4, step:120, breath:0.35,
+    waveAt:1200, period:1450, waves:4, step:135, breath:0.35,
     w1Out:6830, w1OutStag:25, w1OutDur:200,
     nmOut:7080, nmOutStag:10, nmOutDur:330,
     logoUpAt:8100, logoUpDur:260,
@@ -179,7 +185,7 @@ const TL = {
     orbit:false, logoInDur:300,
     w1In:30,  w1Stag:22, w1Dur:200,
     nmIn:200, nmStag:10, nmDur:320,
-    waveAt:800, period:1300, waves:2, step:110, breath:0.25,
+    waveAt:800, period:1300, waves:2, step:120, breath:0.25,
     w1Out:3300, w1OutStag:22, w1OutDur:180,
     nmOut:3480, nmOutStag:9, nmOutDur:300,
     logoUpAt:3950, logoUpDur:240,
@@ -192,7 +198,7 @@ const TL = {
     orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
     w1In:780, w1Stag:22, w1Dur:200,
     nmIn:950, nmStag:10, nmDur:320,
-    waveAt:1700, period:1300, waves:1, step:110, breath:0.25,
+    waveAt:1700, period:1300, waves:1, step:120, breath:0.25,
     w1Out:2950, w1OutStag:22, w1OutDur:180,
     nmOut:3130, nmOutStag:9, nmOutDur:300,
     logoUpAt:3600, logoUpDur:240,
@@ -215,13 +221,29 @@ const EaseInOut = p => { p = Clamp01(p); return p < 0.5 ? 4*p*p*p : 1 - Math.pow
 const N = x => String(Math.round(x * 100) / 100);
 const XmlEsc = c => c === ' ' ? '&#160;' : c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-// Pulso de un punto: anticipación (se achica a 0.8), crece a 1.7, mantiene, vuelve a 1. Dura 520 ms.
+// Pulso de un punto (410 ms): anticipación 1 -> 0.8 rápido, crece a 2.1, pico corto, vuelve a 1.
 function DotScale(u){
-  if (u <= 0 || u >= 520) return 1;
+  if (u <= 0 || u >= 410) return 1;
   if (u < 100) return 1 - 0.2 * EaseInOut(u / 100);
-  if (u < 260) return 0.8 + 0.9 * EaseOut((u - 100) / 160);
-  if (u < 330) return 1.7;
-  return 1.7 - 0.7 * EaseInOut((u - 330) / 190);
+  if (u < 230) return 0.8 + (DOT_PEAK - 0.8) * EaseOut((u - 100) / 130);
+  if (u < 290) return DOT_PEAK;
+  return DOT_PEAK - (DOT_PEAK - 1) * EaseInOut((u - 290) / 120);
+}
+
+// Separación sobre el rayo: sigue al crecimiento (no entra hacia el centro durante la anticipación).
+const DotDrift = s => DOT_DRIFT * Math.max(0, s - 1) / (DOT_PEAK - 1);
+
+// Flote de la bombilla: un ciclo por ola, empieza 17 % del período antes de la ola.
+// Baja rápido (24 %), queda abajo (21 %), sube lento (28 %), reposo (27 %).
+function BulbFloat(k, t, shift){
+  const P = k.period, w = t - (k.waveAt - 0.17 * P);
+  const count = k.waves + shift / P;
+  if (w < 0 || w >= count * P) return 0;
+  const u = (w % P) / P;
+  if (u < 0.24) return BULB_FLOAT * EaseInOut(u / 0.24);
+  if (u < 0.45) return BULB_FLOAT;
+  if (u < 0.73) return BULB_FLOAT * (1 - EaseInOut((u - 0.45) / 0.28));
+  return 0;
 }
 
 // Ciclos extra de ola si los datos no están listos. readyAt = null => todavía cargando.
@@ -322,7 +344,8 @@ function render(t){
   const bs = k.orbit ? 0.85 + 0.15 * EaseOut(Prog(t, 0, k.bulbInDur)) : 1;
   const bulb = $('bulb');
   bulb.style.width = N(lw * bs) + 'px'; bulb.style.height = N(lh * bs) + 'px';
-  bulb.style.left = N(lw * (1 - bs) / 2) + 'px'; bulb.style.top = N(lh * (1 - bs) / 2) + 'px';
+  bulb.style.left = N(lw * (1 - bs) / 2) + 'px';
+  bulb.style.top = N(lh * (1 - bs) / 2 + BulbFloat(k, t, shift)) + 'px';   // solo la bombilla flota; los puntos no
   bulb.style.opacity = k.orbit ? N(Prog(t, 0, k.bulbInDur)) : 1;
 
   // Puntos: Circle controls. Escalar = cambiar Width/Height y recentrar X/Y (Power Apps no tiene "scale").
@@ -336,6 +359,8 @@ function render(t){
       cx = ORBIT_C.x + r * Math.cos(a); cyd = ORBIT_C.y + r * Math.sin(a);
       s *= p; op = Clamp01(p * 3);
     }
+    const dr = DotDrift(s);                   // se aleja del centro sobre su rayo ("asterisco")
+    cx += d.ux * dr; cyd += d.uy * dr;
     const dw = DOT_D * kk * s, el = $(d.id);
     el.style.width = el.style.height = N(dw) + 'px';
     el.style.left = N(cx * kk - dw / 2) + 'px';
