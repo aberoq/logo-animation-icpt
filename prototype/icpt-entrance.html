@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICPT Entrance Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Solo para la vista previa. En Power Apps: "Segoe UI" (sistema) y el wordmark como paths de Figma. -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Open+Sans:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ui-bg:#0d0d0f; --ui-panel:#17171a; --ui-line:#2a2a2f; --ui-text:#d9d9de; --ui-dim:#8a8a92; --ui-accent:#F40008;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ui-bg);color:var(--ui-text);font:13px/1.4 'Segoe UI',system-ui,sans-serif;overflow:hidden;}
+  body{display:flex;flex-direction:column;}
+
+  /* ---------- Vista previa: el "dispositivo" ---------- */
+  #viewport{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #scaler{transform-origin:center center;flex:none;}
+  /* #stage = la pantalla scrSplash de Power Apps. 1366x768 = tamaño de diseño. */
+  #stage{position:relative;width:1366px;height:768px;background:#000;overflow:hidden;box-shadow:0 0 0 1px #222;}
+  #stage *{position:absolute;}
+  .txt{left:0;width:100%;pointer-events:none;}
+  .txt svg,.txt img{display:block;position:static;}
+  #logo{left:0;top:0;}
+  #bulb{left:0;top:0;}
+  .dot{border-radius:50%;}
+  .tag{height:36px;border-radius:6px;background:#16171A;color:#E2E3E6;font:600 16px/36px 'Segoe UI','Open Sans',sans-serif;text-align:center;white-space:nowrap;}
+  #home{inset:0;background:#f3f3f5;opacity:0;display:flex;align-items:center;justify-content:center;color:#666;font:600 18px 'Segoe UI',sans-serif;}
+  #home span{position:static;}
+  .guides #stage::after{content:'';position:absolute;left:50%;top:0;bottom:0;border-left:1px dashed #0ff6;}
+  .guides .txt{outline:1px dashed #f0f6;}
+  .guides #logo{outline:1px dashed #ff06;}
+
+  /* ---------- Barra de control (no es parte del diseño) ---------- */
+  #bar{flex:none;background:var(--ui-panel);border-top:1px solid var(--ui-line);padding:10px 16px;display:flex;flex-direction:column;gap:8px;}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  button,select,input{font:inherit;color:var(--ui-text);background:#222227;border:1px solid var(--ui-line);border-radius:6px;padding:5px 10px;}
+  button{cursor:pointer;}
+  button.on{background:var(--ui-accent);border-color:var(--ui-accent);color:#fff;}
+  input[type=range]{flex:1;padding:0;accent-color:var(--ui-accent);}
+  input.field{width:190px;}
+  label{color:var(--ui-dim);display:flex;align-items:center;gap:6px;}
+  .dyn{color:#ffb347;font-weight:600;}
+  #readout{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ui-dim);min-width:250px;}
+</style>
+</head>
+<body>
+
+<div id="viewport"><div id="scaler">
+  <div id="stage">
+    <div id="logo">
+      <img id="bulb" alt="">
+      <div class="dot" id="dotTop"></div>
+      <div class="dot" id="dotLT"></div>
+      <div class="dot" id="dotRT"></div>
+      <div class="dot" id="dotLB"></div>
+      <div class="dot" id="dotRB"></div>
+    </div>
+    <div class="txt" id="txtWelcome"></div>
+    <div class="txt" id="txtName"></div>
+    <div class="txt" id="txtWm1"></div>
+    <div class="txt" id="txtWm2"></div>
+    <!-- DINÁMICO: Organizational Unit y versión. Ver DYNAMIC más abajo. -->
+    <div class="tag" id="tagOU"></div>
+    <div class="tag" id="tagVer"></div>
+    <div id="home"><span>scrHome — Navigate(scrHome, ScreenTransition.Fade)</span></div>
+  </div>
+</div></div>
+
+<div id="bar">
+  <div class="row">
+    <button data-v="A">A · Fiel al video (≈11 s)</button>
+    <button data-v="B">B · Compacta (≈6 s)</button>
+    <button data-v="C">C · Orbit + compacta (≈6 s)</button>
+    <button data-v="D" class="on">D · Orbit + 3 olas (≈7.7 s)</button>
+    <button id="btnPlay">⏸ Pausa</button>
+    <button id="btnReplay">↺ Reiniciar</button>
+    <select id="speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select>
+    <label><input type="checkbox" id="chkImg"> Render como &lt;img&gt; (igual que el Image control)</label>
+    <label><input type="checkbox" id="chkGuides"> Guías</label>
+    <label>Tick del Timer <select id="tick"><option value="0">continuo</option><option value="30">30 ms</option><option value="60">60 ms</option></select></label>
+  </div>
+  <div class="row">
+    <input type="range" id="scrub" min="0" max="11000" step="1" value="0">
+    <span id="readout"></span>
+  </div>
+  <div class="row">
+    <label><span class="dyn">DINÁMICO</span> Nombre <input class="field" id="inName"></label>
+    <label><span class="dyn">DINÁMICO</span> OU <input class="field" id="inOU" style="width:150px"></label>
+    <label><span class="dyn">DINÁMICO</span> Versión <input class="field" id="inVer" style="width:70px"></label>
+    <label>Movimiento <select id="selMotion"><option value="fluid">Fluido (como la entrada)</option><option value="organic">Orgánico (resorte)</option><option value="old">Anterior (bezier 0.5, 0, 0.5, 1)</option></select></label>
+    <label>Separación <input class="field" id="inDrift" type="number" min="0" max="10" step="0.5" style="width:64px" value="3.5"></label>
+    <label>Datos listos a los <input class="field" id="inReady" type="number" min="0" step="0.5" style="width:70px" value="0"> s</label>
+  </div>
+</div>
+
+<script>
+/* =====================================================================================
+   ICPT — Entrance animation. Prototipo "Power Fx-safe".
+
+   Regla: todo lo que se ve es una función pura de UNA variable de tiempo (t, en ms).
+   Eso es exactamente lo que hace Power Apps: un Timer actualiza varT y cada propiedad
+   (X, Y, Width, Height, Image, Fill) es una fórmula sobre varT. Los nombres de las
+   funciones de abajo son los mismos que los UDF de docs/ICPT_Entrance_PowerFx_Spec.md.
+   ===================================================================================== */
+
+/* ---------------------------------------------------------------------------------------
+   CAMPOS DINÁMICOS — NO HARDCODEAR EN POWER APPS.
+   Los valores de abajo son placeholders de prueba. También se pueden pasar por URL:
+   icpt-entrance.html?name=Ana%20P%C3%A9rez&ou=Europe%20OU&v=4.2
+   --------------------------------------------------------------------------------------- */
+const DYNAMIC = {
+  userName:   'María Fernanda López', // Power Apps: User().FullName  (confirmar si usan otro campo de perfil)
+  orgUnit:    'LATAM OU',             // Power Apps: OU del usuario logueado (fuente a confirmar con Rafa)
+  appVersion: '4.1',                  // Power Apps: named formula AppVersion (constante por release)
+};
+const qs = new URLSearchParams(location.search);
+if (qs.get('name')) DYNAMIC.userName = qs.get('name');
+if (qs.get('ou'))   DYNAMIC.orgUnit = qs.get('ou');
+if (qs.get('v'))    DYNAMIC.appVersion = qs.get('v');
+
+/* ---------------------------------------------------------------------------------------
+   Layout (unidades de diseño sobre 1366x768; valores medidos en el video).
+   Todo se posiciona relativo al centro de la pantalla => funciona con cualquier tamaño.
+   --------------------------------------------------------------------------------------- */
+const LAYOUT = {
+  logoK: 2.56,          // 1 unidad del SVG (viewBox 38 x 39.07) = 2.56 px  -> logo de 97 x 100
+  logoTop: -120,        // top del logo respecto del centro vertical (fase saludo)
+  logoRise: 10,         // el logo entra subiendo 10 px
+  txtSize: 36,          // "Welcome" y nombre
+  welcomeBase: 33,      // baseline respecto del centro
+  nameBase: 71,
+  nameMaxW: 0.62,       // el nombre no ocupa más del 62 % del ancho (nombres largos achican la fuente)
+  wmSize: 34,           // wordmark
+  // El wordmark usa las MISMAS dos líneas que "Welcome" + nombre => el logo no se mueve.
+  wm1Base: 33,
+  wm2Base: 71,
+  tagMargin: 32, tagBottom: 28,
+};
+
+const COLORS = {
+  // Colores de los puntos tomados del video (difieren del SVG v2 — ver spec, sección "Pendientes").
+  dotTop: '#F4330A', dotLT: '#F40008', dotRT: '#6ED578', dotLB: '#F2C12B', dotRB: '#64BEC2',
+  nameGrad: [[0,'#70D6A6'],[0.22,'#F2C12B'],[0.42,'#FFA000'],[1,'#F40008']],
+  wm2Grad:  [[0,'#F40008'],[0.28,'#FFA000'],[0.45,'#D9A31C'],[0.68,'#6ED578'],[1,'#59B8AC']],
+};
+
+// Puntos del logo: centro en unidades del SVG, diámetro 4.954. "wave" = orden en la ola (video: LB→LT→top→RT→RB).
+const DOT_D = 4.954;
+const DOTS = [
+  {id:'dotTop', cx:19.00, cy:2.48,  wave:2},
+  {id:'dotLT',  cx:2.48,  cy:12.02, wave:1},
+  {id:'dotRT',  cx:35.52, cy:12.02, wave:3},
+  {id:'dotLB',  cx:2.48,  cy:31.09, wave:0},
+  {id:'dotRB',  cx:35.52, cy:31.09, wave:4},
+];
+const ORBIT_C = {x:19, y:18.5};   // centro de giro para la variante C
+// Centro del "asterisco": cada punto se aleja de este centro sobre su propio rayo cuando crece.
+const ASTER_C = {x:19, y:19};
+for (const d of DOTS){ const dx = d.cx - ASTER_C.x, dy = d.cy - ASTER_C.y, r = Math.hypot(dx, dy); d.ux = dx / r; d.uy = dy / r; }
+const DOT_PEAK = 2.1;    // escala máxima del pulso (video: 15 px -> 31 px)
+let DOT_DRIFT = 3.5;     // separación máxima sobre el rayo, en unidades del SVG (≈ 9 px). Editable en la barra.
+let MOTION = 'fluid';    // 'fluid' = seguimiento con resorte crítico (default); 'organic' y 'old' = versiones anteriores, para comparar
+/* Modo fluido: cada punto "persigue" un objetivo que salta 1 -> lo -> hi -> 1, con un resorte de
+   amortiguamiento crítico. La respuesta R(x) = 1 - (1 + x/tau)·e^(-x/tau) es una curva ease-out
+   (la misma familia que la entrada orbit) con velocidad 0 al arrancar => velocidad continua siempre.
+   lo / hi están calculados para que el punto toque exactamente 80 % y 210 %. */
+const FLUID = {
+  tau: 65, lo: 0.6871, hi: 2.5997, a: 140, b: 300,    // escala: mín 0.80 a los 143 ms, pico 2.10 a los 317 ms, fin ~810 ms
+  driftTau: 80, driftNorm: 0.6323,                     // separación: más lenta que la escala => follow-through natural
+  floatTau: 0.09, floatUp: 0.3, floatNorm: 0.8525,     // flote de la bombilla, en fracciones del período de ola
+};
+const Follow = (x, tau) => x <= 0 ? 0 : 1 - (1 + x / tau) * Math.exp(-x / tau);
+// Pulso orgánico: anticipación -> crecimiento -> resorte. Curvas en formato cubic-bezier (igual que Figma).
+const PULSE = {
+  shrink: 150, shrinkCurve: [0.45, 0, 0.55, 1],   // 1 -> 0.8, suave en los dos extremos
+  grow:   190, growCurve:   [0.4, 0.25, 0.2, 1],  // 0.8 -> 2.1, arranca con aceleración corta (sin quiebre), centro rápido, llega suave
+  spring: 360, springDecay: 70, springPeriod: 380, // 2.1 -> 1 con resorte: baja a ~0.93 y se asienta
+  driftLag: 50,                                     // la separación va 50 ms detrás de la escala (follow-through)
+};
+const PULSE_OLD = {shrink:160, grow:160, hold:50, back:160, curve:[0.5, 0, 0.5, 1]};
+const BULB_FLOAT = 3.5;  // flote de la bombilla, px hacia abajo
+
+/* ---------------------------------------------------------------------------------------
+   Timelines (ms). t = 0 es el primer frame negro.
+   Todo lo que está después de "w1Out" se corre si los datos todavía no están listos
+   (la ola se repite ciclos completos). Ver Shift().
+   --------------------------------------------------------------------------------------- */
+const TL = {
+  A: { // medido cuadro a cuadro sobre test-entrance-animation.mp4
+    orbit:false, logoInDur:300,
+    w1In:30,  w1Stag:25, w1Dur:220,
+    nmIn:250, nmStag:12, nmDur:380,
+    waveAt:1200, period:1450, waves:4, step:110, breath:0.35,
+    w1Out:6830, w1OutStag:25, w1OutDur:200,
+    nmOut:7080, nmOutStag:10, nmOutDur:330,
+    wm1In:8580, wm1Stag:30, wm1Dur:220,
+    wm2In:8880, wm2Stag:8,  wm2Dur:180,
+    outAt:10080, wmOutDur:100, logoOutDur:250,
+    navAt:10780,
+  },
+  B: { // misma coreografía, 2 olas, holds más cortos: para quien entra varias veces por día
+    orbit:false, logoInDur:300,
+    w1In:30,  w1Stag:22, w1Dur:200,
+    nmIn:200, nmStag:10, nmDur:320,
+    waveAt:800, period:1300, waves:2, step:95, breath:0.25,
+    w1Out:3300, w1OutStag:22, w1OutDur:180,
+    nmOut:3480, nmOutStag:9, nmOutDur:300,
+    wm1In:4250, wm1Stag:26, wm1Dur:200,
+    wm2In:4500, wm2Stag:7,  wm2Dur:170,
+    outAt:5500, wmOutDur:120, logoOutDur:250,
+    navAt:5950,
+  },
+  C: { // los puntos entran orbitando alrededor del bulbo (Cos/Sin en Power Fx); 1 ola
+    orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
+    w1In:780, w1Stag:22, w1Dur:200,
+    nmIn:950, nmStag:10, nmDur:320,
+    waveAt:1700, period:1300, waves:1, step:95, breath:0.25,
+    w1Out:2950, w1OutStag:22, w1OutDur:180,
+    nmOut:3130, nmOutStag:9, nmOutDur:300,
+    wm1In:3900, wm1Stag:26, wm1Dur:200,
+    wm2In:4150, wm2Stag:7,  wm2Dur:170,
+    outAt:5150, wmOutDur:120, logoOutDur:250,
+    navAt:5600,
+  },
+  D: { // entrada orbit de C + 3 olas (como A) + respiración del texto en las olas 2 y 3. Logo fijo.
+    orbit:true, orbitAt:80, orbitStag:70, orbitDur:750, sweep:-150, bulbInDur:450,
+    w1In:780, w1Stag:22, w1Dur:200,
+    nmIn:950, nmStag:10, nmDur:320,
+    waveAt:1700, period:1300, waves:3, step:95, breath:0.35, breathFrom:0,   // respiración del video (35 %) en los 3 loops
+    w1Out:5550, w1OutStag:22, w1OutDur:180,
+    nmOut:5730, nmOutStag:9, nmOutDur:300,
+    wm1In:6000, wm1Stag:26, wm1Dur:200,
+    wm2In:6250, wm2Stag:7,  wm2Dur:170,
+    outAt:7250, wmOutDur:120, logoOutDur:250,
+    navAt:7700,
+  },
+};
+
+/* ---------------------------------------------------------------------------------------
+   UDFs (mismo nombre y misma lógica que en Power Fx)
+   --------------------------------------------------------------------------------------- */
+const Clamp01   = x => Math.max(0, Math.min(1, x));
+const Prog      = (t, start, dur) => Clamp01((t - start) / dur);
+const EaseOut   = p => 1 - Math.pow(1 - Clamp01(p), 3);
+const EaseIn    = p => Math.pow(Clamp01(p), 3);
+const EaseInOut = p => { p = Clamp01(p); return p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3) / 2; };
+// Power Fx: Text(x, "0.##", "en-US")  — el "en-US" es obligatorio (en es-CO el decimal sería coma y el SVG se rompe)
+const N = x => String(Math.round(x * 100) / 100);
+const XmlEsc = c => c === ' ' ? '&#160;' : c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// cubic-bezier(x1, y1, x2, y2), igual que en Figma / CSS. Resuelve x -> t con 5 pasos de Newton
+// (número fijo de pasos: en Power Fx son 5 With() anidados, sin loops).
+function CubicBezier(p, x1, y1, x2, y2){
+  const x = Clamp01(p);
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  let t = x;
+  for (let i = 0; i < 5; i++){
+    const fx = ((ax * t + bx) * t + cx) * t - x;
+    const dx = (3 * ax * t + 2 * bx) * t + cx;
+    if (Math.abs(dx) > 1e-6) t = Clamp01(t - fx / dx);
+  }
+  return ((ay * t + by) * t + cy) * t;
+}
+// Resorte amortiguado que sale del pico con velocidad 0 (no hay quiebre en el 210 %).
+// 1 al empezar, 0 al final; en el medio pasa un poco por debajo de 0 y se asienta.
+function Spring(tau, decay, period){
+  const w = 2 * Math.PI / period;
+  return Math.exp(-tau / decay) * (Math.cos(w * tau) + Math.sin(w * tau) / (w * decay));
+}
+
+// Pulso orgánico (680 ms): 1 -> 0.8 (anticipación) -> 2.1 -> resorte -> 1. Sin pausas.
+function DotScale(u){
+  if (MOTION === 'old') return DotScaleOld(u);
+  if (MOTION === 'fluid'){
+    const F = FLUID;
+    if (u <= 0 || u >= F.b + 12 * F.tau) return 1;
+    return 1 + (F.lo - 1) * Follow(u, F.tau) + (F.hi - F.lo) * Follow(u - F.a, F.tau) + (1 - F.hi) * Follow(u - F.b, F.tau);
+  }
+  const P = PULSE, a = P.shrink, b = a + P.grow, d = b + P.spring;
+  if (u <= 0 || u >= d) return 1;
+  if (u < a) return 1 - 0.2 * CubicBezier(u / a, ...P.shrinkCurve);
+  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * CubicBezier((u - a) / P.grow, ...P.growCurve);
+  return 1 + (DOT_PEAK - 1) * Spring(u - b, P.springDecay, P.springPeriod);
+}
+
+// Versión anterior (para comparar): misma bezier simétrica en cada tramo + pausa en el pico.
+function DotScaleOld(u){
+  const P = PULSE_OLD, a = P.shrink, b = a + P.grow, c = b + P.hold, d = c + P.back;
+  const E = p => CubicBezier(p, ...P.curve);
+  if (u <= 0 || u >= d) return 1;
+  if (u < a) return 1 - 0.2 * E(u / P.shrink);
+  if (u < b) return 0.8 + (DOT_PEAK - 0.8) * E((u - a) / P.grow);
+  if (u < c) return DOT_PEAK;
+  return DOT_PEAK - (DOT_PEAK - 1) * E((u - c) / P.back);
+}
+
+// Separación sobre el rayo: es máxima cuando la escala llega a 2.1 y vuelve a 0 cuando el punto vuelve a 100 %.
+// No entra hacia el centro durante la anticipación.
+const DotDrift = s => DOT_DRIFT * Math.max(0, s - 1) / (DOT_PEAK - 1);
+// Modo fluido: la separación tiene su propio seguimiento (sale en "a", vuelve en "b"), más lento que la escala.
+const DotDriftFluid = u => u <= 0 ? 0
+  : DOT_DRIFT * Math.max(0, Follow(u - FLUID.a, FLUID.driftTau) - Follow(u - FLUID.b, FLUID.driftTau)) / FLUID.driftNorm;
+
+// Flote de la bombilla: un ciclo por ola, empieza 17 % del período antes de la ola.
+// Orgánico: una sola onda continua, sin pausas. sin² con el tiempo deformado (u^0.7):
+// baja en el 37 % del ciclo y sube en el 63 % restante. Velocidad 0 solo arriba y abajo.
+function BulbFloat(k, t, shift){
+  const P = k.period, w = t - (k.waveAt - 0.17 * P);
+  const count = k.waves + shift / P;
+  if (w < 0 || w >= count * P) return 0;
+  const u = (w % P) / P;
+  if (MOTION === 'fluid')   // baja y sube con el mismo seguimiento crítico que los puntos
+    return BULB_FLOAT * Math.max(0, Follow(u, FLUID.floatTau) - Follow(u - FLUID.floatUp, FLUID.floatTau)) / FLUID.floatNorm;
+  if (MOTION !== 'old') return BULB_FLOAT * Math.pow(Math.sin(Math.PI * Math.pow(u, 0.7)), 2);
+  if (u < 0.24) return BULB_FLOAT * EaseInOut(u / 0.24);
+  if (u < 0.45) return BULB_FLOAT;
+  if (u < 0.73) return BULB_FLOAT * (1 - EaseInOut((u - 0.45) / 0.28));
+  return 0;
+}
+
+// Ciclos extra de ola si los datos no están listos. readyAt = null => todavía cargando.
+function Shift(k, t, readyAt){
+  const r = (readyAt == null) ? t + k.period : readyAt;
+  return Math.max(0, Math.ceil((r - k.w1Out) / k.period)) * k.period;
+}
+
+// Tiempo local del pulso de un punto (ms desde que empieza SU pulso en la ola actual); -1 antes de la primera ola.
+function WaveLocal(k, t, order, shift){
+  const w = t - k.waveAt;
+  if (w < 0) return -1;
+  const count = k.waves + shift / k.period;
+  const idx = Math.min(Math.floor(w / k.period), count - 1);
+  return t - (k.waveAt + idx * k.period + order * k.step);
+}
+// Escala de un punto en la fase de olas.
+const WaveScale = (k, t, order, shift, lag = 0) => DotScale(WaveLocal(k, t - lag, order, shift));
+
+// "Respiración" del texto: baja la opacidad en las olas 2..n (en el video empieza 130 ms antes de la ola).
+// breathFrom = primera ola con respiración (0-based). Video: 1 (desde la ola 2). D: 0 (todos los loops).
+function Breath(k, t, shift){
+  const from = k.breathFrom ?? 1;
+  const w = t - (k.waveAt + from * k.period) + 130;
+  const count = k.waves + shift / k.period;
+  if (w < 0 || w >= (count - from) * k.period) return 0;   // una respiración por ola, desde la ola 'from'
+  const u = w % k.period;
+  return u > 1000 ? 0 : Math.pow(Math.sin(Math.PI * u / 1000), 2);
+}
+
+/* RevealSvg: una línea de texto con revelado letra por letra a través de una máscara.
+   Cada letra es un <tspan> con su propio "y" (sube desde abajo de la máscara / baja al salir)
+   y su propio fill-opacity. Las letras siguen el flujo normal del texto => el kerning es correcto
+   y funciona con cualquier nombre. En Power Apps esto es la propiedad Image de un Image control. */
+function RevealSvg(o){
+  const {txt, t, size, w, fill, defs, inAt, inStag, inDur, inFade, outAt, outStag, outDur, outFade, family, id} = o;
+  const h = size * 1.6, base = size * 1.2, rise = size * 1.2;
+  // Desplazamiento vertical de la letra i (0 = en su lugar).
+  const Off = i => i < 0 ? 0
+    : (1 - EaseOut(Prog(t, inAt + i * inStag, inDur))) * rise + EaseIn(Prog(t, outAt + i * outStag, outDur)) * rise;
+  let spans = '';
+  const chars = [...txt];                       // Power Fx: Sequence(Len(txt)) + Mid(txt, Value, 1)
+  chars.forEach((c, i) => {
+    const pi = EaseOut(Prog(t, inAt + i * inStag, inDur));
+    const po = EaseIn(Prog(t, outAt + i * outStag, outDur));
+    const op = (inFade ? pi : (pi > 0 ? 1 : 0)) * (outFade ? 1 - po : 1);
+    // dy RELATIVO (no "y" absoluto): un "y" absoluto abre un text chunk nuevo y text-anchor='middle'
+    // centraría cada letra por separado. Con dy el texto sigue siendo una sola línea centrada.
+    spans += `<tspan dy='${N(Off(i) - Off(i - 1))}' fill-opacity='${N(op)}'>${XmlEsc(c)}</tspan>`;
+  });
+  // "id" solo existe en el prototipo: en el HTML los SVG inline comparten el documento.
+  // En Power Apps cada Image control es un documento aislado y basta con id='g' / id='m'.
+  return `<svg xmlns='http://www.w3.org/2000/svg' width='${N(w)}' height='${N(h)}' viewBox='0 0 ${N(w)} ${N(h)}'>`
+       + defs.replace(/id='g'/g, `id='g${id}'`)
+       + `<clipPath id='m${id}'><rect x='0' y='0' width='${N(w)}' height='${N(size * 1.5)}'/></clipPath>`
+       + `<g clip-path='url(#m${id})'><text x='${N(w / 2)}' y='${N(base)}' text-anchor='middle' font-family="${family}" font-weight='700' font-size='${N(size)}' fill='${fill.replace('#g', '#g' + id)}'>`
+       + spans + `</text></g></svg>`;
+}
+
+const GradDefs = stops => `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>`
+  + stops.map(([o, c]) => `<stop offset='${o}' stop-color='${c}'/>`).join('') + `</linearGradient></defs>`;
+
+const FONT_UI = "'Segoe UI', 'Open Sans', Arial, sans-serif";
+const FONT_WM = "Montserrat, 'Segoe UI', Arial, sans-serif";   // reemplazar por paths del wordmark (Figma)
+
+/* ---------------------------------------------------------------------------------------
+   Render: calcula las propiedades de cada "control" para un t dado.
+   --------------------------------------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+const W = 1366, H = 768;
+const BULB_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 39.07'> <defs> <linearGradient id='b' x1='0%' y1='0%' x2='100%' y2='100%'> <stop offset='0%' stop-color='#F40008'/> <stop offset='33%' stop-color='#FFA000'/> <stop offset='69%' stop-color='#6ED578'/> <stop offset='100%' stop-color='#64BEC2'/> </linearGradient> </defs> <path transform='translate(5.5259,6.3838)' fill='url(#b)' d='M 26.143431587826147 19.376659610355016 C 24.786707745487877 16.734732696374074 24.786707745487877 13.602998307718844 26.143431587826147 10.961071393737901 L 26.66791546868529 9.940277810929375 C 27.484983946756486 8.349486619849086 26.383999714787205 6.4422704851246495 24.598152471721725 6.355578867592514 L 23.453823403115834 6.299229680808797 C 20.486802931357076 6.151853931650069 17.77552144990055 4.584902589348653 16.165224717135597 2.090351282427807 L 15.543213429513294 1.1280746397921848 C 14.572267324509944 -0.37602491437888164 12.37246661395829 -0.37602491437888164 11.40152050895494 1.1280746397921848 L 10.779507567821282 2.090351282427807 C 9.169210835056333 4.587069929360002 6.457931007111159 6.151853931650069 3.4909105353523997 6.299229680808797 L 2.34441392004852 6.355578867592514 C 0.5563993369739733 6.4422704851246495 -0.5424168315750213 8.347319383182198 0.27465164649617496 9.940277810929375 L 0.7991359407331555 10.961071393737901 C 2.155859783071425 13.602998307718844 2.155859783071425 16.734732696374074 0.7991359407331555 19.376659610355016 L 0.27465164649617496 20.397453193163543 C -0.5424168315750213 21.98824438424383 0.5585666769830406 23.895460105590427 2.34441392004852 23.982151723122563 L 3.4909105353523997 24.038500083150602 C 6.048313253087716 24.166370211421142 8.41499480387025 25.349710406745544 10.049131760012644 27.272096972072198 L 10.027457533166292 27.022859898190333 C 9.93859862738858 25.997731532014647 9.672022245924937 24.992108295840968 9.247233318526943 24.055838803241393 L 9.242899465264486 24.047171096707356 C 8.796437654498117 23.056719343957575 8.217770790134587 22.133452961325958 7.476557455524935 21.34239194246405 C 5.972457902937254 19.73642978468216 5.1098763052021825 17.52579278513584 5.289761405094445 15.115765878457328 C 5.601851235632428 10.930728220201177 8.956816784735175 7.703633454658087 13.15052379862195 7.545421250885706 C 17.827536473329104 7.365536150804076 21.674478180077557 11.106278627342052 21.674478180077557 15.742112673512807 L 21.66797657342819 15.742112673512807 L 21.66797657342819 15.748615933680371 C 21.66797657342819 17.8898988796192 20.846572278549804 19.840460348371092 19.50285226957702 21.299046795748428 C 18.752969781620017 22.116115274679764 18.141793540531697 23.048049673878797 17.682327999744302 24.060174310019768 C 17.259706360683147 24.99861103928623 16.995297274015368 25.997730395225588 16.902103785104952 27.025025998068163 L 16.87826345838305 27.287269592285156 C 18.51456775453451 25.356213873602027 20.887750705277487 24.168539618321688 23.44948789634202 24.040669490051148 L 24.593816964947912 23.984317823000396 C 26.381831548022458 23.89762620546826 27.480648439982673 21.992579374299908 26.663579961911477 20.39962094655273 L 26.139096081052333 19.378827363744204 L 26.143431587826147 19.376659610355016 Z'/> <path transform='translate(15.5809,33.6667)' fill='#8BCDB9' d='M 0.004333853585237752 0 L 0 0 L 0.25357259927911113 2.769797077606453 C 0.39011190384974814 4.260893011182039 1.6406380649179257 5.403057098388672 3.138235812362306 5.403057098388672 L 3.690895567878657 5.403057098388672 C 5.184158738326528 5.403057098388672 6.432518799357826 4.269561648452452 6.5733926809249725 2.7828002918732415 L 6.5733926809249725 2.7741325847030347 L 6.829133033752441 0.008671014193163537 C 6.829133033752441 0.008671014193163537 6.8226297731073675 0.013005330809923516 6.8226297731073675 0.015172621326557705 C 4.748532768404871 1.6536442761233647 2.0740976247693 1.6493090790601852 0.002167753548358143 0.004335507096581768 L 0.004333853585237752 0 Z'/> </svg>`;
+
+$('bulb').src = 'data:image/svg+xml;utf8,' + encodeURIComponent(BULB_SVG);
+
+let variant = 'D', asImg = false, readyAtMs = 0;
+const cache = {};   // evita reescribir el DOM si el SVG no cambió
+
+function setTxt(el, svg){
+  if (cache[el.id] === svg) return;
+  cache[el.id] = svg;
+  el.innerHTML = asImg ? `<img src="data:image/svg+xml;utf8,${encodeURIComponent(svg)}">` : svg;
+}
+
+function render(t){
+  const k = TL[variant], Lt = LAYOUT, cy = H / 2;
+  const shift = Shift(k, t, readyAtMs);
+  const tb = t - shift;                       // tiempo para todo lo que pasa después del hold
+
+  /* ---- Logo (contenedor conLogo) ---- */
+  const kk = Lt.logoK, lw = 38 * kk, lh = 39.07 * kk;
+  const logoIn = k.orbit ? 1 : Prog(t, 0, 150);
+  const logoOut = 1 - Prog(tb, k.outAt, k.logoOutDur);
+  const logoY = cy + Lt.logoTop
+              + (k.orbit ? 0 : Lt.logoRise * (1 - EaseOut(Prog(t, 0, k.logoInDur))));   // el logo no sube para el wordmark
+  const logo = $('logo');
+  logo.style.left = N((W - lw) / 2) + 'px'; logo.style.top = N(logoY) + 'px';
+  logo.style.width = N(lw) + 'px'; logo.style.height = N(lh) + 'px';
+  logo.style.opacity = N(logoIn * logoOut);
+
+  // Bulbo: Image control. En C entra con escala 0.85 -> 1 desde el centro.
+  const bs = k.orbit ? 0.85 + 0.15 * EaseOut(Prog(t, 0, k.bulbInDur)) : 1;
+  const bulb = $('bulb');
+  bulb.style.width = N(lw * bs) + 'px'; bulb.style.height = N(lh * bs) + 'px';
+  bulb.style.left = N(lw * (1 - bs) / 2) + 'px';
+  bulb.style.top = N(lh * (1 - bs) / 2 + BulbFloat(k, t, shift)) + 'px';   // solo la bombilla flota; los puntos no
+  bulb.style.opacity = k.orbit ? N(Prog(t, 0, k.bulbInDur)) : 1;
+
+  // Puntos: Circle controls. Escalar = cambiar Width/Height y recentrar X/Y (Power Apps no tiene "scale").
+  for (const d of DOTS){
+    let cx = d.cx, cyd = d.cy, grow = 1, op = 1;   // grow = escala de entrada (solo C)
+    if (k.orbit){
+      const p = EaseOut(Prog(t, k.orbitAt + d.wave * k.orbitStag, k.orbitDur));
+      const dx = d.cx - ORBIT_C.x, dy = d.cy - ORBIT_C.y;
+      const r = Math.hypot(dx, dy), a0 = Math.atan2(dy, dx);
+      const a = a0 + (1 - p) * k.sweep * Math.PI / 180;
+      cx = ORBIT_C.x + r * Math.cos(a); cyd = ORBIT_C.y + r * Math.sin(a);
+      grow = p; op = Clamp01(p * 3);
+    }
+    // Se aleja del centro sobre su rayo ("asterisco"). Usa la escala de hace driftLag ms (follow-through).
+    const s = WaveScale(k, t, d.wave, shift) * grow;
+    const dr = MOTION === 'fluid'
+      ? DotDriftFluid(WaveLocal(k, t, d.wave, shift)) * grow
+      : DotDrift(WaveScale(k, t, d.wave, shift, MOTION === 'old' ? 0 : PULSE.driftLag) * grow);
+    cx += d.ux * dr; cyd += d.uy * dr;
+    const dw = DOT_D * kk * s, el = $(d.id);
+    el.style.width = el.style.height = N(dw) + 'px';
+    el.style.left = N(cx * kk - dw / 2) + 'px';
+    el.style.top  = N(cyd * kk - dw / 2) + 'px';
+    el.style.background = COLORS[d.id];
+    el.style.opacity = N(op);
+  }
+
+  /* ---- Texto fase saludo ----
+     La respiración va en la opacidad del control (Image.Transparency), NO dentro del SVG:
+     así el string del SVG no cambia durante el hold y el Image control no re-decodifica cada tick. */
+  const alpha = 1 - k.breath * Breath(k, t, shift);
+  const S = Lt.txtSize;
+  const gone = (tAt, n, stag, dur) => tb > tAt + n * stag + dur + 50;   // Visible = false cuando ya salió
+
+  const w1 = $('txtWelcome');
+  w1.style.top = N(cy + Lt.welcomeBase - S * 1.2) + 'px';
+  w1.style.display = gone(k.w1Out, 7, k.w1OutStag, k.w1OutDur) ? 'none' : '';
+  setTxt(w1, RevealSvg({id:'w1', txt:'Welcome', t, size:S, w:W, fill:'#FFFFFF', defs:'', family:FONT_UI,
+    inAt:k.w1In, inStag:k.w1Stag, inDur:k.w1Dur, inFade:false,
+    outAt:k.w1Out + shift, outStag:k.w1OutStag, outDur:k.w1OutDur, outFade:false}));
+  w1.style.opacity = N(alpha);
+
+  // Nombre: DINÁMICO. Fuente se achica para nombres largos (no se puede medir texto en Power Fx: estimación 0.6 em/letra).
+  const name = DYNAMIC.userName;
+  const nS = Math.min(S, Lt.nameMaxW * W / (0.6 * [...name].length));
+  const nm = $('txtName');
+  nm.style.top = N(cy + Lt.nameBase - nS * 1.2) + 'px';
+  nm.style.display = gone(k.nmOut, [...name].length, k.nmOutStag, k.nmOutDur) ? 'none' : '';
+  setTxt(nm, RevealSvg({id:'nm', txt:name, t, size:nS, w:W, fill:'url(#g)', defs:GradDefs(COLORS.nameGrad), family:FONT_UI,
+    inAt:k.nmIn, inStag:k.nmStag, inDur:k.nmDur, inFade:true,
+    outAt:k.nmOut + shift, outStag:k.nmOutStag, outDur:k.nmOutDur, outFade:true}));
+  nm.style.opacity = N(alpha);
+
+  /* ---- Wordmark ---- */
+  const wmA = 1 - Prog(tb, k.outAt, k.wmOutDur), WS = Lt.wmSize;
+  const wm1 = $('txtWm1');
+  wm1.style.top = N(cy + Lt.wm1Base - WS * 1.2) + 'px';
+  wm1.style.display = tb < k.wm1In ? 'none' : '';
+  setTxt(wm1, RevealSvg({id:'wa', txt:'Investment', t:tb, size:WS, w:W, fill:'#FFFFFF', defs:'', family:FONT_WM,
+    inAt:k.wm1In, inStag:k.wm1Stag, inDur:k.wm1Dur, inFade:false,
+    outAt:1e9, outStag:0, outDur:1, outFade:false}));
+  wm1.style.opacity = N(wmA);
+  // Misma línea que el nombre: "Prioritization Tool" espera a que el nombre termine de salir (nombres largos).
+  const wm2At = Math.max(k.wm2In, k.nmOut + [...name].length * k.nmOutStag + k.nmOutDur + 40);
+  const wm2 = $('txtWm2');
+  wm2.style.top = N(cy + Lt.wm2Base - WS * 1.2) + 'px';
+  wm2.style.display = tb < wm2At ? 'none' : '';
+  setTxt(wm2, RevealSvg({id:'wb', txt:'Prioritization Tool', t:tb, size:WS, w:W, fill:'url(#g)', defs:GradDefs(COLORS.wm2Grad), family:FONT_WM,
+    inAt:wm2At, inStag:k.wm2Stag, inDur:k.wm2Dur, inFade:false,
+    outAt:1e9, outStag:0, outDur:1, outFade:false}));
+  wm2.style.opacity = N(wmA);
+
+  /* ---- Tags: DINÁMICO (OU + versión). Ancho estimado por largo del texto (Label no tiene AutoWidth). ---- */
+  const ou = DYNAMIC.orgUnit, ver = 'V' + DYNAMIC.appVersion;
+  const tw = s => Math.max(114, [...s].length * 9.5 + 36);
+  const tOU = $('tagOU'), tV = $('tagVer');
+  tOU.textContent = ou; tV.textContent = ver;
+  tOU.style.width = tw(ou) + 'px'; tOU.style.left = Lt.tagMargin + 'px'; tOU.style.top = (H - Lt.tagBottom - 36) + 'px';
+  tV.style.width = tw(ver) + 'px'; tV.style.left = (W - Lt.tagMargin - tw(ver)) + 'px'; tV.style.top = (H - Lt.tagBottom - 36) + 'px';
+
+  /* ---- Navigate(scrHome, ScreenTransition.Fade) ---- */
+  $('home').style.opacity = N(Prog(tb, k.navAt, 300));
+
+  return {shift, tb};
+}
+
+/* ---------------------------------------------------------------------------------------
+   Reloj de la vista previa (= Timer + varT en Power Apps)
+   --------------------------------------------------------------------------------------- */
+let t = 0, playing = true, last = performance.now(), speed = 1, tick = 0;
+const endOf = () => TL[variant].navAt + 400;
+
+function phaseName(k, tb, t){
+  if (t < k.waveAt) return 'entrada saludo';
+  if (tb < k.w1Out) return 'olas / hold';
+  if (tb < k.wm1In) return 'salida saludo';
+  if (tb < k.outAt) return 'wordmark';
+  if (tb < k.navAt) return 'salida logo';
+  return 'navigate';
+}
+
+function loop(now){
+  const dt = now - last; last = now;
+  if (playing){
+    t += dt * speed;
+    const end = endOf() + Shift(TL[variant], t, readyAtMs);
+    if (t >= end){ t = end; playing = false; $('btnPlay').textContent = '▶ Play'; }
+  }
+  const tq = tick ? Math.floor(t / tick) * tick : t;   // simula la resolución del Timer
+  const {shift, tb} = render(tq);
+  const scrub = $('scrub');
+  scrub.max = endOf() + shift;
+  if (document.activeElement !== scrub) scrub.value = t;
+  $('readout').textContent = `t = ${Math.round(tq).toString().padStart(5)} ms · ${phaseName(TL[variant], tb, tq)}${shift ? ` · +${shift} ms esperando datos` : ''}`;
+  requestAnimationFrame(loop);
+}
+
+function restart(){ t = 0; playing = true; $('btnPlay').textContent = '⏸ Pausa'; }
+
+document.querySelectorAll('button[data-v]').forEach(b => b.onclick = () => {
+  variant = b.dataset.v;
+  document.querySelectorAll('button[data-v]').forEach(x => x.classList.toggle('on', x === b));
+  restart();
+});
+$('btnPlay').onclick = () => {
+  if (!playing && t >= endOf()) t = 0;
+  playing = !playing; $('btnPlay').textContent = playing ? '⏸ Pausa' : '▶ Play';
+};
+$('btnReplay').onclick = restart;
+$('speed').onchange = e => speed = +e.target.value;
+$('tick').onchange = e => tick = +e.target.value;
+$('scrub').oninput = e => { t = +e.target.value; playing = false; $('btnPlay').textContent = '▶ Play'; };
+$('chkImg').onchange = e => { asImg = e.target.checked; for (const key in cache) delete cache[key]; };
+$('chkGuides').onchange = e => document.body.classList.toggle('guides', e.target.checked);
+$('selMotion').onchange = e => { MOTION = e.target.value; };
+$('inDrift').oninput = e => { const v = +e.target.value; if (Number.isFinite(v)) DOT_DRIFT = Math.max(0, v); };
+$('inReady').oninput = e => { readyAtMs = Math.max(0, +e.target.value || 0) * 1000; };
+
+for (const [inp, key] of [['inName','userName'],['inOU','orgUnit'],['inVer','appVersion']]){
+  $(inp).value = DYNAMIC[key];
+  $(inp).oninput = e => { DYNAMIC[key] = e.target.value; };
+}
+
+function fit(){
+  const vp = $('viewport').getBoundingClientRect();
+  const s = Math.min(vp.width / W, vp.height / H) * 0.96;
+  $('scaler').style.transform = `scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+// Hooks para pruebas automáticas (render de un t fijo).
+window.__icpt = { render, setVariant: v => { variant = v; }, pause: () => { playing = false; }, setT: v => { t = v; } };
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
