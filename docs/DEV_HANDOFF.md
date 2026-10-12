@@ -27,7 +27,7 @@ No cambiar estas decisiones sin consultar con diseño:
 
 - **Fondo blanco**, por continuidad con el loader nativo de Power Apps (fondo blanco, logo al centro y barra gris; no se puede modificar). Pasar del blanco del nativo a un splash negro se veía brusco. "Welcome" es oscuro (`#16171A`), el nombre usa un gradiente con contraste sobre blanco y los tags son gris claro con texto oscuro.
 - **Sin wordmark al final.** El nativo ya muestra el logo + "Investment Prioritization Tool". El splash termina con "Welcome [NAME]": el nombre sale, el logo queda solo un momento y sale.
-- **El logo empata con el del loader nativo**, en posición y tamaño, para que el paso de uno al otro no se note.
+- **El logo empata con el del loader nativo**, en posición y tamaño (alto 69 px, top a −99 del centro), y el splash **arranca con el logo completo**, igual al último cuadro del nativo. En C y D los puntos dan una vuelta y vuelven a su lugar (`SplashEntry = "native"`). Nada desaparece en el corte.
 - **Movimiento fluido:** los puntos siguen un objetivo con un resorte de amortiguamiento crítico (`Follow`). No reemplazar por easings por tramos: con easings por tramos el movimiento se ve robótico.
 - **Pulso de los puntos:** 100 % → 80 % → 210 % → 100 %, con una separación de 3.5 unidades (~9 px) sobre el rayo de cada punto.
 - **Flote:** solo la bombilla flota. Los puntos no.
@@ -84,7 +84,7 @@ Color.White
 
 Verificación: comparen contra el prototipo en los ms 1700, 2000 y 2300 (el scrub de la barra permite ir a cada uno). Los puntos no se cortan en el borde del Container. Solo la bombilla flota.
 
-Continuidad con el nativo: hagan una captura del loader nativo en el tamaño real de la app y cárguenla en el prototipo ("Referencia nativo"). Ajusten "Logo Y" y "Logo alto" hasta que los dos logos coincidan, y copien los valores a `Lay.LogoTop` y `Lay.K` (= alto / 39.07). Después verifiquen en la app real que el logo no "salta" al pasar del nativo al splash.
+Continuidad con el nativo: `Lay.LogoTop` y `Lay.K` ya están alineados con una captura en 1366 × 768. Verifiquen en la app real, cuadro a cuadro (grabación de pantalla), que en el corte del nativo al splash el logo no salta, no cambia de tamaño y no desaparece. Si la app usa otro tamaño, repitan la alineación con el overlay del prototipo.
 
 ### Etapa 2 — Texto, indicador de carga y tags
 

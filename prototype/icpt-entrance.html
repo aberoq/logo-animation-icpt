@@ -106,6 +106,7 @@
   </div>
   <div class="row">
     <label>Indicador de carga <select id="selLoader"><option value="text">"Loading..." (Figma)</option><option value="bar">Barra (como el nativo)</option><option value="none">Ninguno</option></select></label>
+    <label>Entrada <select id="selEntry"><option value="native">Desde el nativo (continua)</option><option value="scratch">Orbit desde cero (anterior)</option></select></label>
     <label>Gradiente del nombre <select id="selGrad"><option value="vivid">Vivo (≥ 3:1 sólido)</option><option value="accessible">Accesible (≥ 3:1 también al respirar)</option></select></label>
     <label>Referencia nativo <input type="file" id="inRef" accept="image/*" style="width:190px"></label>
     <label>Opacidad <input type="range" id="refOpacity" min="0" max="100" value="50" style="width:90px;flex:none"></label>
@@ -145,8 +146,9 @@ if (qs.get('v'))    DYNAMIC.appVersion = qs.get('v');
    --------------------------------------------------------------------------------------- */
 const LAYOUT = {
   // Logo: tiene que empatar en posición y tamaño con el logo del loader nativo (ajustar con el overlay).
-  logoK: 2.56,          // 1 unidad del SVG (viewBox 38 x 39.07) = 2.56 px  -> logo de 97 x 100
-  logoTop: -120,        // top del logo respecto del centro vertical
+  // Valores alineados con una captura del loader nativo (overlay): logo de 69 px de alto, top a -99 del centro.
+  logoK: 69 / 39.07,    // 1 unidad del SVG (viewBox 38 x 39.07) = 1.766 px  -> logo de 67 x 69
+  logoTop: -99,         // top del logo respecto del centro vertical
   logoRise: 10,         // el logo entra subiendo 10 px
   txtSize: 36,          // "Welcome" y nombre
   welcomeBase: 33,      // baseline respecto del centro
@@ -168,6 +170,13 @@ const COLORS = {
   nameGradAccessible: [[0,'#1F6B50'],[0.22,'#7F5700'],[0.42,'#9D4A00'],[1,'#E00007']],
 };
 let NAME_GRAD = 'vivid';
+/* Entrada:
+   'native'  = el splash arranca con el logo IGUAL al último cuadro del loader nativo (bombilla y puntos
+               visibles, en su lugar). En C/D los puntos dan una vuelta completa y vuelven a su lugar.
+               Nada desaparece en el corte nativo -> splash.
+   'scratch' = entrada anterior: la bombilla aparece con fade y los puntos entran orbitando desde 0. */
+let ENTRY = 'native';
+const SPIN = {sweep: -360, dur: 1100};   // vuelta completa de la entrada 'native' (C/D), stagger = orbitStag
 let LOADER = 'text';      // 'text' = "Loading..." | 'bar' = barra delgada como el nativo | 'none'
 
 // Puntos del logo: centro en unidades del SVG, diámetro 4.954. "wave" = orden en la ola (video: LB→LT→top→RT→RB).
@@ -439,34 +448,37 @@ function render(t){
 
   /* ---- Logo (contenedor conLogo) ---- */
   const kk = Lt.logoK, lw = 38 * kk, lh = 39.07 * kk;
-  const logoIn = k.orbit ? 1 : Prog(t, 0, 150);
+  const native = ENTRY === 'native';
+  const logoIn = (k.orbit || native) ? 1 : Prog(t, 0, 150);
   const name = DYNAMIC.userName;
   const logoOut = 1 - Prog(tb, LogoOutAt(k, name), k.logoOutDur);
   const logoY = cy + Lt.logoTop
-              + (k.orbit ? 0 : Lt.logoRise * (1 - EaseOut(Prog(t, 0, k.logoInDur))));   // el logo no se mueve después de entrar
+              + ((k.orbit || native) ? 0 : Lt.logoRise * (1 - EaseOut(Prog(t, 0, k.logoInDur))));   // el logo no se mueve después de entrar
   const logo = $('logo');
   logo.style.left = N((W - lw) / 2) + 'px'; logo.style.top = N(logoY) + 'px';
   logo.style.width = N(lw) + 'px'; logo.style.height = N(lh) + 'px';
   logo.style.opacity = N(logoIn * logoOut);
 
   // Bulbo: Image control. En C entra con escala 0.85 -> 1 desde el centro.
-  const bs = k.orbit ? 0.85 + 0.15 * EaseOut(Prog(t, 0, k.bulbInDur)) : 1;
+  const bs = (k.orbit && !native) ? 0.85 + 0.15 * EaseOut(Prog(t, 0, k.bulbInDur)) : 1;
   const bulb = $('bulb');
   bulb.style.width = N(lw * bs) + 'px'; bulb.style.height = N(lh * bs) + 'px';
   bulb.style.left = N(lw * (1 - bs) / 2) + 'px';
   bulb.style.top = N(lh * (1 - bs) / 2 + BulbFloat(k, t, shift)) + 'px';   // solo la bombilla flota; los puntos no
-  bulb.style.opacity = k.orbit ? N(Prog(t, 0, k.bulbInDur)) : 1;
+  bulb.style.opacity = (k.orbit && !native) ? N(Prog(t, 0, k.bulbInDur)) : 1;
 
   // Puntos: Circle controls. Escalar = cambiar Width/Height y recentrar X/Y (Power Apps no tiene "scale").
   for (const d of DOTS){
     let cx = d.cx, cyd = d.cy, grow = 1, op = 1;   // grow = escala de entrada (solo C)
     if (k.orbit){
-      const p = EaseOut(Prog(t, k.orbitAt + d.wave * k.orbitStag, k.orbitDur));
+      // native: arranca en reposo y en su lugar (EaseInOut, vuelta de 360°). scratch: entra desde 0 (EaseOut).
+      const p = native ? EaseInOut(Prog(t, k.orbitAt + d.wave * k.orbitStag, SPIN.dur))
+                       : EaseOut(Prog(t, k.orbitAt + d.wave * k.orbitStag, k.orbitDur));
       const dx = d.cx - ORBIT_C.x, dy = d.cy - ORBIT_C.y;
       const r = Math.hypot(dx, dy), a0 = Math.atan2(dy, dx);
-      const a = a0 + (1 - p) * k.sweep * Math.PI / 180;
+      const a = a0 + (1 - p) * (native ? SPIN.sweep : k.sweep) * Math.PI / 180;
       cx = ORBIT_C.x + r * Math.cos(a); cyd = ORBIT_C.y + r * Math.sin(a);
-      grow = p; op = Clamp01(p * 3);
+      if (!native){ grow = p; op = Clamp01(p * 3); }
     }
     // Se aleja del centro sobre su rayo ("asterisco"). Usa la escala de hace driftLag ms (follow-through).
     const s = WaveScale(k, t, d.wave, shift) * grow;
@@ -588,6 +600,7 @@ $('inDrift').oninput = e => { const v = +e.target.value; if (Number.isFinite(v))
 $('inReady').oninput = e => { readyAtMs = Math.max(0, +e.target.value || 0) * 1000; };
 $('selLoader').onchange = e => { LOADER = e.target.value; };
 $('selGrad').onchange = e => { NAME_GRAD = e.target.value; };
+$('selEntry').onchange = e => { ENTRY = e.target.value; };
 
 // Overlay de referencia: se lee localmente (FileReader), no se sube a ningún lado.
 $('inRef').onchange = e => {

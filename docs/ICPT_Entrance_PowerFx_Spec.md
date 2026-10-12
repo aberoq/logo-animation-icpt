@@ -7,7 +7,8 @@ Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps,
 **Cambios de v4.** Power Apps muestra antes un loader nativo que no se puede modificar: fondo blanco, el logo al centro, "Investment Prioritization Tool" en negro y una barra de progreso gris. Para que el paso del nativo al splash no sea brusco:
 - El splash tiene **fondo blanco**. Cambian los colores del texto y de los tags.
 - **No hay wordmark al final**, porque el nativo ya lo muestra. El splash termina con "Welcome [NAME]": el nombre sale, el logo queda solo un momento y sale.
-- El logo del splash tiene que quedar en la **misma posición y tamaño** que el logo del nativo.
+- El logo del splash queda en la **misma posición y tamaño** que el logo del nativo (alto 69 px, top a −99 del centro, medido sobre una captura).
+- **Entrada continua:** el splash arranca con el logo igual al último cuadro del nativo (bombilla y puntos visibles, en su lugar). En C y D los puntos dan una vuelta completa alrededor de la bombilla y vuelven a su lugar. Nada desaparece en el corte nativo → splash. Antes, la bombilla arrancaba invisible y los puntos entraban desde cero: aun con el mismo fondo, el logo "desaparecía" en el corte.
 - Hay un **indicador de carga** debajo del nombre: el texto "Loading..." (Figma) o una barra como la del nativo. Está pendiente de decidir.
 
 ---
@@ -84,14 +85,17 @@ AppVersion     = "4.1";                // Constante por release. Se muestra como
 // Variante activa. Idea: "D" la primera vez del día, "C" las siguientes.
 // =====================================================================
 SplashVariant = "D";   // favorita actual: Orbit + 3 olas
+SplashEntry   = "native"; // "native" = arranca igual al loader nativo (default) | "scratch" = entrada anterior (fade + orbit desde 0)
 SplashLoader  = "text"; // "text" = "Loading..." (Figma) | "bar" = barra como el loader nativo. PENDIENTE de decidir.
 
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
-    // K y LogoTop tienen que empatar con el logo del loader nativo (alinear con el overlay del prototipo).
-    K: 2.56,            // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 2.56 px => logo de 97 x 100
+    // K y LogoTop empatan con el logo del loader nativo (alineado sobre una captura, en 1366 x 768).
+    K: 69 / 39.07,      // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 1.766 px => logo de 67 x 69
     LogoPad: 22,
-    LogoTop: -120,      // top del logo respecto del centro vertical
+    SpinDur: 1100,      // entrada "native" (C/D): vuelta completa de cada punto, en ms
+    SpinSweep: -360,    // grados
+    LogoTop: -99,       // top del logo respecto del centro vertical
     LogoRise: 10,
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
@@ -287,7 +291,7 @@ OnTimerEnd  =
     Set(varShift, SplashShift(varT, varReadyAt));
     Set(varTb, varT - varShift);
     // Opacidad común del logo (un Container no tiene opacidad; ver §5)
-    Set(varLogoAlpha, If(TL.orbit, 1, Prog(varT, 0, 150)) * (1 - Prog(varTb, SplashLogoOutAt, TL.logoOutDur)));
+    Set(varLogoAlpha, If(TL.orbit || SplashEntry = "native", 1, Prog(varT, 0, 150)) * (1 - Prog(varTb, SplashLogoOutAt, TL.logoOutDur)));
     If(varTb >= SplashNavAt,
         Set(varSplashOn, false);
         Navigate(scrHome, ScreenTransition.Fade)
@@ -306,7 +310,7 @@ Width  = 38 * Lay.K + 2 * Lay.LogoPad
 Height = 39.07 * Lay.K + 2 * Lay.LogoPad
 X      = (Parent.Width - Self.Width) / 2
 Y      = Parent.Height / 2 + Lay.LogoTop - Lay.LogoPad
-         + If(TL.orbit, 0, Lay.LogoRise * (1 - EaseOut(Prog(varT, 0, TL.logoInDur))))
+         + If(TL.orbit || SplashEntry = "native", 0, Lay.LogoRise * (1 - EaseOut(Prog(varT, 0, TL.logoInDur))))
          // Después de entrar, el logo no se mueve.
 Fill   = Color.Transparent
 ```
@@ -315,12 +319,12 @@ La opacidad común del logo está en `varLogoAlpha` (se calcula en `tmrSplash.On
 
 ### imgBulb (Image, `icpt-bulb` en Media)
 ```powerfx
-// bs = escala del bulbo (solo C)
-Width        = 38 * Lay.K * If(TL.orbit, 0.85 + 0.15 * EaseOut(Prog(varT, 0, TL.bulbInDur)), 1)
+// Escala de entrada solo en C/D con SplashEntry = "scratch". Con "native" el bulbo arranca completo.
+Width        = 38 * Lay.K * If(TL.orbit && SplashEntry = "scratch", 0.85 + 0.15 * EaseOut(Prog(varT, 0, TL.bulbInDur)), 1)
 Height       = Self.Width * 39.07 / 38
 X            = Lay.LogoPad + (38 * Lay.K - Self.Width) / 2
 Y            = Lay.LogoPad + (39.07 * Lay.K - Self.Height) / 2 + BulbFloat(varT, varShift)   // solo la bombilla flota
-Transparency = 1 - varLogoAlpha * If(TL.orbit, Prog(varT, 0, TL.bulbInDur), 1)
+Transparency = 1 - varLogoAlpha * If(TL.orbit && SplashEntry = "scratch", Prog(varT, 0, TL.bulbInDur), 1)
 ```
 
 ### cirDot* (Circle). Ejemplo: cirDotLB
@@ -345,12 +349,17 @@ Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(WaveLocal(varT, 0, varShift)))
 Fill   = RGBA(242, 193, 43, varLogoAlpha)
 ```
 
-Variante C (orbit). Centro de giro (19, 18.5). Para cada punto, `r` y `a0` son constantes (calcular una vez con `Sqrt(dx^2 + dy^2)` y `Atan2(dx, dy)`; en Power Fx `Atan2` recibe **(x, y)**):
+Variantes C / D (orbit). Centro de giro (19, 18.5). Para cada punto, `r` y `a0` son constantes (calcular una vez con `Sqrt(dx^2 + dy^2)` y `Atan2(dx, dy)`; en Power Fx `Atan2` recibe **(x, y)**):
 ```powerfx
-With({p: EaseOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, TL.orbitDur))},
-     With({a: a0 + (1 - p) * Radians(TL.sweep)},
+// SplashEntry = "native": arranca en reposo y en su lugar, vuelta completa (EaseInOut, SpinDur, SpinSweep).
+// SplashEntry = "scratch": entra desde 0 (EaseOut, orbitDur, sweep).
+With({p: If(SplashEntry = "native",
+            EaseInOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, Lay.SpinDur)),
+            EaseOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, TL.orbitDur)))},
+     With({a: a0 + (1 - p) * Radians(If(SplashEntry = "native", Lay.SpinSweep, TL.sweep))},
           /* X */ Lay.LogoPad + (19 + r * Cos(a)) * Lay.K - Self.Width / 2))
-// Y igual con 18.5 + r * Sin(a). Width multiplicado por p. Alpha × Clamp01(p * 3).
+// Y igual con 18.5 + r * Sin(a).
+// Solo con "scratch": Width multiplicado por p y Alpha × Clamp01(p * 3). Con "native" el punto queda a escala 1 y opaco.
 // Sumar también el drift: + ux * DotDrift(s) en X, + uy * DotDrift(s) en Y (igual que A / B).
 ```
 
@@ -432,8 +441,8 @@ RadiusTopLeft = 6   // y los otros tres
 | ms | Evento |
 |---|---|
 | 0 | Termina el loader nativo (blanco). Empieza el splash, también blanco. |
-| 0 → 450 | El bulbo entra: fade + escala 0.85 → 1. |
-| 80 → 1110 | Los 5 puntos entran orbitando 150° alrededor del bulbo (stagger 70 ms, 750 ms cada uno). |
+| 0 | El logo está completo y en el mismo lugar que en el loader nativo. |
+| 80 → 1460 | Los 5 puntos dan una vuelta completa alrededor de la bombilla y vuelven a su lugar (stagger 70 ms, 1100 ms cada uno, EaseInOut). |
 | 780 → 1110 | "Welcome" letra por letra. |
 | 950 → ≈ 1460 | Nombre letra por letra, con fade. El final depende del largo del nombre. |
 | ≈ 1270 → 1520 | Aparece el indicador de carga ("Loading..." o la barra). |
@@ -478,7 +487,7 @@ En el prototipo se pueden probar en la barra de abajo, o por URL: `?name=…&ou=
 ## 9. Pendientes
 
 1. **`icpt-logo.svg` no está en el repo.** Usé los paths del prototipo v2. Los colores de los puntos en el video son diferentes de los del SVG v2 (tabla en §5). Uno de los dos está desactualizado. Confirmar contra Figma.
-2. **Continuidad con el loader nativo.** El logo del splash tiene que empatar en posición y tamaño con el logo del nativo. Capturen el nativo en el tamaño real de la app, cárguenlo en el overlay del prototipo ("Referencia nativo") y ajusten "Logo Y" y "Logo alto". Después copien los valores a `Lay.LogoTop` y `Lay.K` (= alto / 39.07).
+2. **Continuidad con el loader nativo.** `Lay.LogoTop` (−99) y `Lay.K` (69 / 39.07) ya están alineados sobre una captura en 1366 × 768. Si la app usa otro tamaño, repitan la alineación con el overlay del prototipo ("Referencia nativo", "Logo Y", "Logo alto").
 3. **Tamaño de diseño de la app.** Usé 1366 × 768. Si la app usa otro tamaño, todo está posicionado desde el centro y se adapta, pero las medidas de `Lay` son px de diseño.
 4. **Prueba de parpadeo (riesgo #13).** Antes de construir todo, armen solo `imgWelcome` + `tmrSplash` y pruébenlo en Teams desktop, en el navegador y en el player móvil. Si parpadea: suban `Duration` a 50 ms, o hagan solo el nombre por letra y el resto por línea.
 5. **Fuente fuera de Windows.** En el player de iOS/Android no hay Segoe UI. El SVG usa Arial como fallback. Si el splash se usa en móvil, consideren pasar "Welcome" a paths también.
