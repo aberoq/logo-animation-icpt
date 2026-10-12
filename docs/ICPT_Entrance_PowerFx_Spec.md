@@ -111,8 +111,8 @@ Lay = {
     NameBase: 71,
     NameMaxW: 0.62,
     LoadingBase: 105,   // "Loading..." (baseline respecto del centro), debajo del nombre
-    BarY: 102,          // barra: top respecto del centro
-    BarW: 160           // barra: ancho
+    BarY: 95,           // barra: top respecto del centro  } iguales a la barra del loader nativo
+    BarW: 265           // barra: ancho                    } (medidas en la grabación de la app)
 };
 
 // Timelines (ms). Mismos números que TL.A … TL.D en el prototipo.
@@ -207,13 +207,16 @@ Breath(t: Number, shift: Number): Number =
             With({u: Mod(w, TL.period)}, If(u > 1000, 0, Power(Sin(Pi() * u / 1000), 2)))));
 
 // Progreso de la barra de carga (0..1), solo para SplashLoader = "bar".
-// Mientras carga (readyAt = -1) se acerca a 90 % sin llegar. Cuando los datos están listos,
-// completa hasta 100 % justo cuando empieza la salida del texto (TL.w1Out + shift).
+// El loader nativo corta con su barra en ~90 %. Nuestra barra está en la misma posición y tamaño y
+// ARRANCA en 90 %: la carga se ve como una sola. Mientras carga (readyAt = -1) avanza muy despacio
+// hacia 97 %. Cuando los datos están listos, completa hasta 100 % justo cuando empieza la salida del
+// texto (TL.w1Out + shift).
 // Si se puede leer el progreso real de la carga, reemplazar esta función (pregunta abierta para Rafa).
+LoadPending(t: Number): Number = 0.9 + 0.07 * (1 - Exp(-t / 3000));
 LoadProgress(t: Number, readyAt: Number, shift: Number): Number =
     If(readyAt < 0 || t < readyAt,
-        0.9 * (1 - Exp(-t / 2000)),
-        With({p0: 0.9 * (1 - Exp(-readyAt / 2000))},
+        LoadPending(t),
+        With({p0: LoadPending(readyAt)},
             p0 + (1 - p0) * EaseInOut(Prog(t, readyAt, Max(1, TL.w1Out + shift - readyAt)))));
 
 // Una línea de texto con revelado letra por letra a través de una máscara.
@@ -391,7 +394,7 @@ Visible = varTb < TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 
 ```
 
 ### Indicador de carga (SplashLoader)
-Los dos aparecen con el nombre y salen cuando el nombre empieza a salir. No respiran: "Loading..." tiene que mantener 4.5:1.
+"Loading..." aparece con el nombre. La barra está visible desde t = 0, porque continúa la del loader nativo. Los dos salen cuando el nombre empieza a salir. No respiran: "Loading..." tiene que mantener 4.5:1.
 
 ```powerfx
 // lblLoading (opción "text")
@@ -405,17 +408,17 @@ Color = RGBA(95, 99, 104, 1)      // #5F6368 = 6.05:1 sobre blanco
 Transparency = 1 - Prog(varT, TL.nmIn + TL.nmDur, 250) * (1 - Prog(varTb, TL.nmOut, 200))
 Visible = SplashLoader = "text"
 
-// recBarTrack (opción "bar")
-Width = Lay.BarW; Height = 3
+// recBarTrack (opción "bar"). Mismos tamaño, posición y colores que la barra del loader nativo.
+Width = Lay.BarW; Height = 2
 X = (Parent.Width - Lay.BarW) / 2
 Y = Parent.Height / 2 + Lay.BarY
-Fill = RGBA(230, 232, 235, 1)     // #E6E8EB
-Transparency = 1 - Prog(varT, TL.nmIn + TL.nmDur, 250) * (1 - Prog(varTb, TL.nmOut, 200))
+Fill = RGBA(236, 236, 236, 1)     // #ECECEC (nativo)
+Transparency = Prog(varTb, TL.nmOut, 200)   // visible desde t = 0: continúa la barra del nativo
 Visible = SplashLoader = "bar"
 
 // recBarFill (opción "bar"; mismo X / Y / Height / Transparency / Visible que recBarTrack)
 Width = Lay.BarW * LoadProgress(varT, varReadyAt, varShift)
-Fill = RGBA(107, 112, 120, 1)     // #6B7078 = 4.98:1 sobre blanco
+Fill = RGBA(86, 86, 86, 1)        // #565656 (nativo), 7.4:1 sobre blanco
 ```
 
 ### Tags — DINÁMICO
@@ -445,7 +448,8 @@ RadiusTopLeft = 6   // y los otros tres
 | 80 → 1460 | Los 5 puntos dan una vuelta completa alrededor de la bombilla y vuelven a su lugar (stagger 70 ms, 1100 ms cada uno, EaseInOut). |
 | 780 → 1110 | "Welcome" letra por letra. |
 | 950 → ≈ 1460 | Nombre letra por letra, con fade. El final depende del largo del nombre. |
-| ≈ 1270 → 1520 | Aparece el indicador de carga ("Loading..." o la barra). |
+| 0 | Opción "bar": la barra sigue en el mismo lugar que la del nativo, desde 90 %. |
+| ≈ 1270 → 1520 | Opción "text": aparece "Loading...". |
 | 1700, 3000, 4300 | 3 olas. Cada una: LB → LT → Top → RT → RB, cada 95 ms. La bombilla flota un ciclo por ola. |
 | 1570 → 5170 | "Welcome" y el nombre respiran (opacidad mín. 0.65) en los 3 loops, sincronizados con cada ola. |
 | 5550 → 5860 | "Welcome" baja y sale por la máscara. |

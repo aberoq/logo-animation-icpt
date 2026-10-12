@@ -31,8 +31,14 @@
   .tag{height:36px;border-radius:6px;background:#F0F1F2;color:#3D4248;font:600 16px/36px 'Segoe UI','Open Sans',sans-serif;text-align:center;white-space:nowrap;}
   /* Indicador de carga. Opción 1: texto "Loading..." (Label). Opción 2: barra delgada como la del loader nativo (2 Rectangle). */
   #loadingTxt{left:0;width:100%;text-align:center;color:#5F6368;font:600 14px/20px 'Segoe UI','Open Sans',sans-serif;}
-  #barTrack{height:3px;background:#E6E8EB;overflow:hidden;}
-  #barFill{left:0;top:0;height:3px;background:#6B7078;}
+  /* Barra: mismos tamaño, posición y colores que la del loader nativo => la carga se ve como una sola. */
+  #barTrack{height:2px;background:#ECECEC;overflow:hidden;}
+  #barFill{left:0;top:0;height:2px;background:#565656;}
+  /* Loader nativo de Power Apps SIMULADO (solo prototipo; en la app real lo pone Power Apps). Medido en la grabación. */
+  #native{inset:0;background:#FFFFFF;display:none;}
+  #nText{left:0;width:100%;text-align:center;color:#1F1F1F;font:700 19px/24px Helvetica,Arial,sans-serif;}
+  #nTrack{height:2px;background:#ECECEC;overflow:hidden;}
+  #nFill{left:0;top:0;height:2px;background:#565656;}
   /* Overlay de referencia (solo prototipo): captura del loader nativo para alinear el logo. */
   #refOverlay{inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;display:none;}
   #home{inset:0;background:#f3f3f5;opacity:0;display:flex;align-items:center;justify-content:center;color:#666;font:600 18px 'Segoe UI',sans-serif;}
@@ -75,6 +81,11 @@
     <div class="tag" id="tagOU"></div>
     <div class="tag" id="tagVer"></div>
     <div id="home"><span>scrHome — Navigate(scrHome, ScreenTransition.Fade)</span></div>
+    <div id="native">
+      <img id="nLogo" alt="">
+      <div id="nText">Investment Prioritization Tool</div>
+      <div id="nTrack"><div id="nFill"></div></div>
+    </div>
     <img id="refOverlay" alt="Referencia del loader nativo">
   </div>
 </div></div>
@@ -106,6 +117,7 @@
   </div>
   <div class="row">
     <label>Indicador de carga <select id="selLoader"><option value="text">"Loading..." (Figma)</option><option value="bar">Barra (como el nativo)</option><option value="none">Ninguno</option></select></label>
+    <label><input type="checkbox" id="chkNative" checked> Mostrar loader nativo antes (como en la app)</label>
     <label>Entrada <select id="selEntry"><option value="native">Desde el nativo (continua)</option><option value="scratch">Orbit desde cero (anterior)</option></select></label>
     <label>Gradiente del nombre <select id="selGrad"><option value="vivid">Vivo (≥ 3:1 sólido)</option><option value="accessible">Accesible (≥ 3:1 también al respirar)</option></select></label>
     <label>Referencia nativo <input type="file" id="inRef" accept="image/*" style="width:190px"></label>
@@ -155,7 +167,7 @@ const LAYOUT = {
   nameBase: 71,
   nameMaxW: 0.62,       // el nombre no ocupa más del 62 % del ancho (nombres largos achican la fuente)
   loadingBase: 105,     // "Loading..." (baseline respecto del centro), debajo del nombre
-  barY: 102, barW: 160, // barra de carga: top respecto del centro y ancho
+  barY: 95, barW: 265,  // barra de carga: igual a la del loader nativo (top respecto del centro, ancho)
   tagMargin: 32, tagBottom: 28,
 };
 
@@ -365,15 +377,24 @@ const NameEnd   = (k, name) => k.nmOut + [...name].length * k.nmOutStag + k.nmOu
 const LogoOutAt = (k, name) => NameEnd(k, name) + k.logoHold;
 const NavAt     = (k, name) => LogoOutAt(k, name) + k.logoOutDur + k.navGap;
 
-// Progreso de la barra de carga (0..1). Función pura de t y readyAt, igual que SplashShift:
-// mientras carga se acerca a 90 % sin llegar; cuando los datos están listos completa hasta 100 %
-// justo cuando empieza la salida del texto (w1Out + shift).
+// Progreso de la barra de carga (0..1). Función pura de t y readyAt, igual que SplashShift.
+// El loader nativo corta con su barra en ~90 %: la nuestra ARRANCA en 90 % (misma posición y tamaño),
+// así la carga se ve como una sola. Mientras carga avanza muy despacio hacia 97 %; cuando los datos
+// están listos completa hasta 100 % justo cuando empieza la salida del texto (w1Out + shift).
 function LoadProgress(k, t, readyAt, shift){
+  const pending = tt => 0.9 + 0.07 * (1 - Math.exp(-tt / 3000));
   const r = (readyAt == null || t < readyAt) ? null : readyAt;
-  if (r == null) return 0.9 * (1 - Math.exp(-t / 2000));
-  const p0 = 0.9 * (1 - Math.exp(-r / 2000)), end = k.w1Out + shift;
+  if (r == null) return pending(t);
+  const p0 = pending(r), end = k.w1Out + shift;
   return p0 + (1 - p0) * EaseInOut(Prog(t, r, Math.max(1, end - r)));
 }
+
+/* Loader nativo simulado (solo prototipo). Tiempos medidos en la grabación de la app:
+   blanco 130 ms -> aparece la barra -> el relleno avanza (smoothstep) hasta ~90 % en 1 s ->
+   texto a los 300 ms -> logo a los 400 ms -> corte al splash a los 1300 ms. */
+const NATIVE = {dur:1300, barAt:130, fillAt:170, fillDur:1000, fillMax:0.9, textAt:300, logoAt:400, textBase:41};
+let SHOW_NATIVE = true;
+const Smooth = p => { p = Clamp01(p); return p * p * (3 - 2 * p); };
 
 // Escala de un punto en la fase de olas.
 const WaveScale = (k, t, order, shift, lag = 0) => DotScale(WaveLocal(k, t - lag, order, shift));
@@ -431,6 +452,24 @@ const W = 1366, H = 768;
 const BULB_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 39.07'> <defs> <linearGradient id='b' x1='0%' y1='0%' x2='100%' y2='100%'> <stop offset='0%' stop-color='#F40008'/> <stop offset='33%' stop-color='#FFA000'/> <stop offset='69%' stop-color='#6ED578'/> <stop offset='100%' stop-color='#64BEC2'/> </linearGradient> </defs> <path transform='translate(5.5259,6.3838)' fill='url(#b)' d='M 26.143431587826147 19.376659610355016 C 24.786707745487877 16.734732696374074 24.786707745487877 13.602998307718844 26.143431587826147 10.961071393737901 L 26.66791546868529 9.940277810929375 C 27.484983946756486 8.349486619849086 26.383999714787205 6.4422704851246495 24.598152471721725 6.355578867592514 L 23.453823403115834 6.299229680808797 C 20.486802931357076 6.151853931650069 17.77552144990055 4.584902589348653 16.165224717135597 2.090351282427807 L 15.543213429513294 1.1280746397921848 C 14.572267324509944 -0.37602491437888164 12.37246661395829 -0.37602491437888164 11.40152050895494 1.1280746397921848 L 10.779507567821282 2.090351282427807 C 9.169210835056333 4.587069929360002 6.457931007111159 6.151853931650069 3.4909105353523997 6.299229680808797 L 2.34441392004852 6.355578867592514 C 0.5563993369739733 6.4422704851246495 -0.5424168315750213 8.347319383182198 0.27465164649617496 9.940277810929375 L 0.7991359407331555 10.961071393737901 C 2.155859783071425 13.602998307718844 2.155859783071425 16.734732696374074 0.7991359407331555 19.376659610355016 L 0.27465164649617496 20.397453193163543 C -0.5424168315750213 21.98824438424383 0.5585666769830406 23.895460105590427 2.34441392004852 23.982151723122563 L 3.4909105353523997 24.038500083150602 C 6.048313253087716 24.166370211421142 8.41499480387025 25.349710406745544 10.049131760012644 27.272096972072198 L 10.027457533166292 27.022859898190333 C 9.93859862738858 25.997731532014647 9.672022245924937 24.992108295840968 9.247233318526943 24.055838803241393 L 9.242899465264486 24.047171096707356 C 8.796437654498117 23.056719343957575 8.217770790134587 22.133452961325958 7.476557455524935 21.34239194246405 C 5.972457902937254 19.73642978468216 5.1098763052021825 17.52579278513584 5.289761405094445 15.115765878457328 C 5.601851235632428 10.930728220201177 8.956816784735175 7.703633454658087 13.15052379862195 7.545421250885706 C 17.827536473329104 7.365536150804076 21.674478180077557 11.106278627342052 21.674478180077557 15.742112673512807 L 21.66797657342819 15.742112673512807 L 21.66797657342819 15.748615933680371 C 21.66797657342819 17.8898988796192 20.846572278549804 19.840460348371092 19.50285226957702 21.299046795748428 C 18.752969781620017 22.116115274679764 18.141793540531697 23.048049673878797 17.682327999744302 24.060174310019768 C 17.259706360683147 24.99861103928623 16.995297274015368 25.997730395225588 16.902103785104952 27.025025998068163 L 16.87826345838305 27.287269592285156 C 18.51456775453451 25.356213873602027 20.887750705277487 24.168539618321688 23.44948789634202 24.040669490051148 L 24.593816964947912 23.984317823000396 C 26.381831548022458 23.89762620546826 27.480648439982673 21.992579374299908 26.663579961911477 20.39962094655273 L 26.139096081052333 19.378827363744204 L 26.143431587826147 19.376659610355016 Z'/> <path transform='translate(15.5809,33.6667)' fill='#8BCDB9' d='M 0.004333853585237752 0 L 0 0 L 0.25357259927911113 2.769797077606453 C 0.39011190384974814 4.260893011182039 1.6406380649179257 5.403057098388672 3.138235812362306 5.403057098388672 L 3.690895567878657 5.403057098388672 C 5.184158738326528 5.403057098388672 6.432518799357826 4.269561648452452 6.5733926809249725 2.7828002918732415 L 6.5733926809249725 2.7741325847030347 L 6.829133033752441 0.008671014193163537 C 6.829133033752441 0.008671014193163537 6.8226297731073675 0.013005330809923516 6.8226297731073675 0.015172621326557705 C 4.748532768404871 1.6536442761233647 2.0740976247693 1.6493090790601852 0.002167753548358143 0.004335507096581768 L 0.004333853585237752 0 Z'/> </svg>`;
 
 $('bulb').src = 'data:image/svg+xml;utf8,' + encodeURIComponent(BULB_SVG);
+// Logo completo y estático del loader nativo (bulbo + 5 puntos en su lugar).
+$('nLogo').src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  BULB_SVG.replace(/<\/svg>\s*$/, DOTS.map(d => `<circle cx='${d.cx}' cy='${d.cy}' r='${DOT_D / 2}' fill='${COLORS[d.id]}'/>`).join('') + '</svg>'));
+
+function renderNative(tn){
+  const Lt = LAYOUT, cy = H / 2, kk = Lt.logoK, lw = 38 * kk, lh = 39.07 * kk;
+  const nl = $('nLogo');
+  nl.style.left = N((W - lw) / 2) + 'px'; nl.style.top = N(cy + Lt.logoTop) + 'px';
+  nl.style.width = N(lw) + 'px'; nl.style.height = N(lh) + 'px';
+  nl.style.opacity = tn >= NATIVE.logoAt ? 1 : 0;
+  const nt = $('nText');
+  nt.style.top = N(cy + NATIVE.textBase - 19) + 'px';
+  nt.style.opacity = tn >= NATIVE.textAt ? 1 : 0;
+  const tr = $('nTrack');
+  tr.style.left = N((W - Lt.barW) / 2) + 'px'; tr.style.top = N(cy + Lt.barY) + 'px'; tr.style.width = Lt.barW + 'px';
+  tr.style.opacity = tn >= NATIVE.barAt ? 1 : 0;
+  $('nFill').style.width = N(Lt.barW * NATIVE.fillMax * Smooth((tn - NATIVE.fillAt) / NATIVE.fillDur)) + 'px';
+}
 
 let variant = 'D', asImg = false, readyAtMs = 0;
 const cache = {};   // evita reescribir el DOM si el SVG no cambió
@@ -522,14 +561,13 @@ function render(t){
   /* ---- Indicador de carga ----
      Aparece con el nombre y sale cuando el nombre empieza a salir. Sin respiración: "Loading..."
      tiene que mantener 4.5:1 (#5F6368 = 6.05:1). Solo cambia Transparency/Width => controles nativos. */
-  const ldIn = k.orbit ? Prog(t, k.nmIn + k.nmDur, 250) : Prog(t, 0, 150);
   const ldOut = 1 - Prog(tb, k.nmOut, 200);
   const lt = $('loadingTxt');
   lt.style.top = N(cy + Lt.loadingBase - 15) + 'px';
   lt.style.opacity = LOADER === 'text' ? N(Prog(t, k.nmIn + k.nmDur, 250) * ldOut) : 0;
   const bt = $('barTrack'), bf = $('barFill');
   bt.style.left = N((W - Lt.barW) / 2) + 'px'; bt.style.top = N(cy + Lt.barY) + 'px'; bt.style.width = Lt.barW + 'px';
-  bt.style.opacity = LOADER === 'bar' ? N(ldIn * ldOut) : 0;
+  bt.style.opacity = LOADER === 'bar' ? N(ldOut) : 0;   // visible desde t = 0: continúa la barra del nativo
   bf.style.width = N(Lt.barW * LoadProgress(k, t, readyAtMs, shift)) + 'px';
 
   /* ---- Tags: DINÁMICO (OU + versión). Ancho estimado por largo del texto (Label no tiene AutoWidth). ---- */
@@ -550,7 +588,8 @@ function render(t){
    Reloj de la vista previa (= Timer + varT en Power Apps)
    --------------------------------------------------------------------------------------- */
 let t = 0, playing = true, last = performance.now(), speed = 1, tick = 0;
-const endOf = () => NavAt(TL[variant], DYNAMIC.userName) + 400;
+const pre = () => SHOW_NATIVE ? NATIVE.dur : 0;   // t del reloj incluye el loader nativo; el splash usa t - pre()
+const endOf = () => pre() + NavAt(TL[variant], DYNAMIC.userName) + 400;
 
 function phaseName(k, tb, t){
   const name = DYNAMIC.userName;
@@ -566,15 +605,21 @@ function loop(now){
   const dt = now - last; last = now;
   if (playing){
     t += dt * speed;
-    const end = endOf() + Shift(TL[variant], t, readyAtMs);
+    const end = endOf() + Shift(TL[variant], Math.max(0, t - pre()), readyAtMs);
     if (t >= end){ t = end; playing = false; $('btnPlay').textContent = '▶ Play'; }
   }
   const tq = tick ? Math.floor(t / tick) * tick : t;   // simula la resolución del Timer
-  const {shift, tb} = render(tq);
+  const inNative = SHOW_NATIVE && tq < NATIVE.dur;
+  $('native').style.display = inNative ? 'block' : 'none';
+  if (inNative) renderNative(tq);
+  const ts = Math.max(0, tq - pre());                   // tiempo del splash
+  const {shift, tb} = render(ts);
   const scrub = $('scrub');
   scrub.max = endOf() + shift;
   if (document.activeElement !== scrub) scrub.value = t;
-  $('readout').textContent = `t = ${Math.round(tq).toString().padStart(5)} ms · ${phaseName(TL[variant], tb, tq)}${shift ? ` · +${shift} ms esperando datos` : ''}`;
+  $('readout').textContent = inNative
+    ? `t = ${Math.round(tq).toString().padStart(5)} ms · loader nativo (Power Apps)`
+    : `t = ${Math.round(tq).toString().padStart(5)} ms · splash ${Math.round(ts)} ms · ${phaseName(TL[variant], tb, ts)}${shift ? ` · +${shift} ms esperando datos` : ''}`;
   requestAnimationFrame(loop);
 }
 
@@ -601,6 +646,8 @@ $('inReady').oninput = e => { readyAtMs = Math.max(0, +e.target.value || 0) * 10
 $('selLoader').onchange = e => { LOADER = e.target.value; };
 $('selGrad').onchange = e => { NAME_GRAD = e.target.value; };
 $('selEntry').onchange = e => { ENTRY = e.target.value; };
+if (qs.get('native') === '0') { SHOW_NATIVE = false; $('chkNative').checked = false; }
+$('chkNative').onchange = e => { SHOW_NATIVE = e.target.checked; restart(); };
 
 // Overlay de referencia: se lee localmente (FileReader), no se sube a ningún lado.
 $('inRef').onchange = e => {
