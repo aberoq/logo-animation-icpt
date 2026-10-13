@@ -1,8 +1,15 @@
-# ICPT — Entrance animation: spec Power Fx (v3)
+# ICPT — Entrance animation: spec Power Fx (v4, fondo blanco)
 
 Esta spec reemplaza la v2. El prototipo de referencia es `prototype/icpt-entrance.html`. Cada función de esta spec tiene una función con el mismo nombre en el prototipo, con la misma lógica.
 
-Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps, con análisis de píxeles de cada punto y de cada línea de texto). En esta spec, t = 0 es el primer cuadro negro (0.47 s en el video).
+Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps, con análisis de píxeles de cada punto y de cada línea de texto). En esta spec, t = 0 es el primer cuadro del splash, justo después del loader nativo de Power Apps.
+
+**Cambios de v4.** Power Apps muestra antes un loader nativo que no se puede modificar: fondo blanco, el logo al centro, "Investment Prioritization Tool" en negro y una barra de progreso gris. Para que el paso del nativo al splash no sea brusco:
+- El splash tiene **fondo blanco**. Cambian los colores del texto y de los tags.
+- **No hay wordmark al final**, porque el nativo ya lo muestra. El splash termina con "Welcome [NAME]": el nombre sale, el logo queda solo un momento y sale.
+- El logo del splash queda en la **misma posición y tamaño** que el logo del nativo (alto 69 px, top a −99 del centro, medido sobre una captura).
+- **Entrada continua:** el splash arranca con el logo igual al último cuadro del nativo (bombilla y puntos visibles, en su lugar). En C y D los puntos dan una vuelta completa alrededor de la bombilla y vuelven a su lugar. Nada desaparece en el corte nativo → splash. Antes, la bombilla arrancaba invisible y los puntos entraban desde cero: aun con el mismo fondo, el logo "desaparecía" en el corte.
+- Hay un **indicador de carga** debajo del nombre: el texto "Loading..." (Figma) o una barra como la del nativo. Está pendiente de decidir.
 
 ---
 
@@ -19,9 +26,9 @@ Fuente de timing: `test-entrance-animation.mp4`, medido cuadro a cuadro (30 fps,
 | 7 | Puntos que crecen a 2.1× y se separan del bulbo | Un Container recorta a sus hijos. En el pico, el punto de arriba y los de la izquierda salen hasta 20 px del borde y se cortan. | El Container del logo tiene 22 px de padding en cada lado (`LogoPad`). |
 | 8 | Timer que suma `varT + 30` en cada tick | El Timer no es preciso (jitter, pestaña en segundo plano). La animación se atrasa. | `varT = DateDiff(varT0, Now(), TimeUnit.Milliseconds)`. Si un tick se atrasa, el siguiente cuadro igual es correcto. |
 | 9 | Números dentro del SVG | `Text(12.5)` en un tenant es-CO / es-MX da `"12,5"` y el SVG se rompe. | `N(x) = Text(Round(x, 2), "0.##", "en-US")`. Siempre con `"en-US"`. |
-| 10 | Fuente del wordmark (geométrica ancha, parecida a Montserrat Bold) | Un SVG dentro de un Image control se renderiza como imagen y **no carga fuentes web**. Solo usa fuentes del sistema. | Nombre y "Welcome": `Segoe UI` (sistema, en Windows). Wordmark: paths de Figma, una letra por `<g>` (pendiente, ver §8). |
-| 11 | Logo que sube con un "dissolve" (cuadros fantasma de 8.6 s a 8.8 s en el video) | Es el Smart Animate de Figma: un crossfade entre dos posiciones. No hay crossfade de posición en Power Apps. | Tween de `Y` con `EaseInOut`. Se ve más limpio. |
-| 12 | El logo "salta" 15 px hacia abajo al salir (10.55 s en el video) | Es un artefacto del prototipo de Figma. | Lo omití. El logo sale con fade en su lugar. |
+| 10 | Fuentes web dentro del SVG | Un SVG dentro de un Image control se renderiza como imagen y **no carga fuentes web**. Solo usa fuentes del sistema. | "Welcome" y nombre: `Segoe UI` (sistema, en Windows). |
+| 11 | Logo que sube para el wordmark, con un "dissolve" (video) | Ya no aplica: v4 no tiene wordmark. | El logo no se mueve después de entrar. |
+| 12 | Respiración del texto sobre fondo blanco | La respiración baja la opacidad a 0.65. Sobre blanco eso aclara el color y baja el contraste del nombre. | Dos gradientes para decidir (§3, `GradName`): **Vivo** (≥ 3:1 sólido, 2.05:1 en la respiración) y **Accesible** (≥ 3:1 también en la respiración). |
 | 13 | El `Image` cambia en cada tick | Riesgo: re-decodificar un SVG a 30 fps puede parpadear en algunos players. | El SVG cambia solo durante entradas y salidas (~2.5 s en total). La respiración y los fades van en `Transparency`, no en el SVG. **Probar esto primero en el dispositivo real** (§9). |
 
 Errores de la v2 contra el video, ya corregidos en v3:
@@ -34,8 +41,7 @@ Errores de la v2 contra el video, ya corregidos en v3:
 | Pulso simple 1 → 1.4 → 1 | 1 → 0.8 → 2.1 → 1 en ~810 ms. El punto sigue un objetivo con un resorte de amortiguamiento crítico (`Follow`), la misma curva ease-out de la entrada orbit. Velocidad continua: sin pausas ni quiebres. |
 | Los puntos crecen en su lugar | Mientras crece, cada punto se aleja ~13 px del centro de la bombilla (máximo en el 210 %, vuelve a 0 en el 100 %) sobre su propio rayo (como un asterisco). En la anticipación no se mueve hacia adentro. |
 | La bombilla está fija | La bombilla flota ~3.5 px hacia abajo y vuelve, un ciclo por ola, con el mismo `Follow` que los puntos (baja rápido, sube con una cola larga). Los puntos no flotan. |
-| El logo se achica a 0.82 para el wordmark | El logo no cambia de tamaño ni de posición. En el video sube 15 px, pero no hace falta: el wordmark usa las mismas dos líneas que "Welcome" + nombre. |
-| El wordmark aparece con fade | El wordmark entra letra por letra, igual que "Welcome" |
+| El logo se achica a 0.82 para el wordmark | v4: no hay wordmark. El logo no cambia de tamaño ni de posición. |
 | Loop infinito | Termina y navega a la app (`Navigate(…, ScreenTransition.Fade)`) |
 | El texto no cambia durante el hold | El texto "respira": la opacidad baja a 0.65 en cada ola, desde la ola 2 |
 
@@ -43,7 +49,7 @@ Errores de la v2 contra el video, ya corregidos en v3:
 
 ## 2. Arquitectura
 
-- Una pantalla `scrSplash`, fondo negro.
+- Una pantalla `scrSplash`, fondo blanco (continuidad con el loader nativo).
 - Un Timer `tmrSplash` actualiza `varT` (ms desde el inicio), `varShift` y `varTb`.
 - Cada propiedad animada es una fórmula sobre esas variables. Ningún control tiene estado propio.
 - "Hold hasta que haya datos": si la carga no termina, la ola se repite en ciclos completos. Todo lo que pasa después del hold usa `varTb = varT − varShift` (ver `SplashShift`).
@@ -57,7 +63,8 @@ Controles:
 | `imgBulb` | Image | Bulbo + base (`assets/icpt-bulb.svg`, en Media). Solo se mueve en Y (flote). |
 | `cirDotTop`, `cirDotLT`, `cirDotRT`, `cirDotLB`, `cirDotRB` | Circle | Los 5 puntos. Width/Height/X/Y animados. |
 | `imgWelcome`, `imgName` | Image | Saludo y nombre (`RevealSvg`). |
-| `imgWm1`, `imgWm2` | Image | "Investment" / "Prioritization Tool". |
+| `lblLoading` | Label | Opción 1 del indicador: "Loading...". |
+| `recBarTrack`, `recBarFill` | Rectangle | Opción 2 del indicador: barra delgada como la del loader nativo. |
 | `conOU` + `lblOU`, `conVer` + `lblVer` | Container + Label | Tags de abajo. El Container da el radio de 6 px (un Label clásico no tiene radio). |
 
 ---
@@ -75,15 +82,20 @@ SplashOrgUnit  = "LATAM OU";           // TODO (Rafa): reemplazar por la fuente 
 AppVersion     = "4.1";                // Constante por release. Se muestra como "V" & AppVersion
 
 // =====================================================================
-// Variante activa. Idea: "A" la primera vez del día, "B" las siguientes.
+// Variante activa. Idea: "D" la primera vez del día, "C" las siguientes.
 // =====================================================================
 SplashVariant = "D";   // favorita actual: Orbit + 3 olas
+SplashEntry   = "native"; // "native" = arranca igual al loader nativo (default) | "scratch" = entrada anterior (fade + orbit desde 0)
+SplashLoader  = "text"; // "text" = "Loading..." (Figma) | "bar" = barra como el loader nativo. PENDIENTE de decidir.
 
 // Layout en unidades de diseño (medido en el video sobre 1366 x 768).
 Lay = {
-    K: 2.56,            // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 2.56 px
+    // K y LogoTop empatan con el logo del loader nativo (alineado sobre una captura, en 1366 x 768).
+    K: 69 / 39.07,      // 1 unidad del SVG del logo (viewBox 38 x 39.07) = 1.766 px => logo de 67 x 69
     LogoPad: 22,
-    LogoTop: -120,      // top del logo respecto del centro vertical
+    SpinDur: 1100,      // entrada "native" (C/D): vuelta completa de cada punto, en ms
+    SpinSweep: -360,    // grados
+    LogoTop: -99,       // top del logo respecto del centro vertical
     LogoRise: 10,
     DotD: 4.954,
     DotPeak: 2.1,       // escala máxima del pulso
@@ -98,40 +110,43 @@ Lay = {
     WelcomeBase: 33,    // baselines respecto del centro vertical
     NameBase: 71,
     NameMaxW: 0.62,
-    WmSize: 34,
-    Wm1Base: 33,        // = WelcomeBase: el wordmark ocupa las mismas líneas => el logo no se mueve
-    Wm2Base: 71         // = NameBase
+    LoadingBase: 105,   // "Loading..." (baseline respecto del centro), debajo del nombre
+    BarY: 95,           // barra: top respecto del centro  } iguales a la barra del loader nativo
+    BarW: 265           // barra: ancho                    } (medidas en la grabación de la app)
 };
 
-// Timelines (ms). Mismos números que TL.A / TL.B / TL.C en el prototipo.
+// Timelines (ms). Mismos números que TL.A … TL.D en el prototipo.
+// La salida (logo + Navigate) se calcula desde el final del nombre: ver SplashLogoOutAt.
 TL = Switch(SplashVariant,
     "A", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 25, w1Dur: 220, nmIn: 250, nmStag: 12, nmDur: 380,
           waveAt: 1200, period: 1450, waves: 4, step: 110, breath: 0.35, breathFrom: 1,
           w1Out: 6830, w1OutStag: 25, w1OutDur: 200, nmOut: 7080, nmOutStag: 10, nmOutDur: 330,
-          wm1In: 8580, wm1Stag: 30, wm1Dur: 220, wm2In: 8880, wm2Stag: 8, wm2Dur: 180,
-          outAt: 10080, wmOutDur: 100, logoOutDur: 250, navAt: 10780},
+          logoHold: 200, logoOutDur: 250, navGap: 200},
     "B", {orbit: false, logoInDur: 300, orbitAt: 0, orbitStag: 0, orbitDur: 1, sweep: 0, bulbInDur: 1,
           w1In: 30, w1Stag: 22, w1Dur: 200, nmIn: 200, nmStag: 10, nmDur: 320,
           waveAt: 800, period: 1300, waves: 2, step: 95, breath: 0.25, breathFrom: 1,
           w1Out: 3300, w1OutStag: 22, w1OutDur: 180, nmOut: 3480, nmOutStag: 9, nmOutDur: 300,
-          wm1In: 4250, wm1Stag: 26, wm1Dur: 200, wm2In: 4500, wm2Stag: 7, wm2Dur: 170,
-          outAt: 5500, wmOutDur: 120, logoOutDur: 250, navAt: 5950},
+          logoHold: 200, logoOutDur: 250, navGap: 200},
     /* "C" */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
           waveAt: 1700, period: 1300, waves: 1, step: 95, breath: 0.25, breathFrom: 1,
           w1Out: 2950, w1OutStag: 22, w1OutDur: 180, nmOut: 3130, nmOutStag: 9, nmOutDur: 300,
-          wm1In: 3900, wm1Stag: 26, wm1Dur: 200, wm2In: 4150, wm2Stag: 7, wm2Dur: 170,
-          outAt: 5150, wmOutDur: 120, logoOutDur: 250, navAt: 5600},
+          logoHold: 200, logoOutDur: 250, navGap: 200},
     /* "D" (default) */
          {orbit: true, logoInDur: 300, orbitAt: 80, orbitStag: 70, orbitDur: 750, sweep: -150, bulbInDur: 450,
           w1In: 780, w1Stag: 22, w1Dur: 200, nmIn: 950, nmStag: 10, nmDur: 320,
           waveAt: 1700, period: 1300, waves: 3, step: 95, breath: 0.35, breathFrom: 0,
           w1Out: 5550, w1OutStag: 22, w1OutDur: 180, nmOut: 5730, nmOutStag: 9, nmOutDur: 300,
-          wm1In: 6000, wm1Stag: 26, wm1Dur: 200, wm2In: 6250, wm2Stag: 7, wm2Dur: 170,
-          outAt: 7250, wmOutDur: 120, logoOutDur: 250, navAt: 7700}
+          logoHold: 200, logoOutDur: 250, navGap: 200}
 );
+
+// Salida: cuando el nombre termina de salir, el logo queda solo TL.logoHold ms y sale con fade.
+// Se calcula desde el final del nombre => funciona con nombres de cualquier largo.
+SplashNameEnd    = TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur;
+SplashLogoOutAt  = SplashNameEnd + TL.logoHold;
+SplashNavAt      = SplashLogoOutAt + TL.logoOutDur + TL.navGap;
 
 // =====================================================================
 // UDFs
@@ -191,6 +206,19 @@ Breath(t: Number, shift: Number): Number =
         If(w < 0 || w >= (TL.waves + shift / TL.period - TL.breathFrom) * TL.period, 0,
             With({u: Mod(w, TL.period)}, If(u > 1000, 0, Power(Sin(Pi() * u / 1000), 2)))));
 
+// Progreso de la barra de carga (0..1), solo para SplashLoader = "bar".
+// El loader nativo corta con su barra en ~90 %. Nuestra barra está en la misma posición y tamaño y
+// ARRANCA en 90 %: la carga se ve como una sola. Mientras carga (readyAt = -1) avanza muy despacio
+// hacia 97 %. Cuando los datos están listos, completa hasta 100 % justo cuando empieza la salida del
+// texto (TL.w1Out + shift).
+// Si se puede leer el progreso real de la carga, reemplazar esta función (pregunta abierta para Rafa).
+LoadPending(t: Number): Number = 0.9 + 0.07 * (1 - Exp(-t / 3000));
+LoadProgress(t: Number, readyAt: Number, shift: Number): Number =
+    If(readyAt < 0 || t < readyAt,
+        LoadPending(t),
+        With({p0: LoadPending(readyAt)},
+            p0 + (1 - p0) * EaseInOut(Prog(t, readyAt, Max(1, TL.w1Out + shift - readyAt)))));
+
 // Una línea de texto con revelado letra por letra a través de una máscara.
 // Baseline a 1.2 × size. Máscara hasta 1.5 × size (deja lugar a los descendentes: g, j, p, q, y).
 RevealSvg(txt: Text, t: Number, size: Number, w: Number, fill: Text, defs: Text, family: Text,
@@ -224,13 +252,14 @@ RevealSvg(txt: Text, t: Number, size: Number, w: Number, fill: Text, defs: Text,
         "</text></g></svg>"
     );
 
+// Gradiente del nombre sobre blanco. Meta: ≥ 3:1 en TODO el gradiente (texto grande), no solo en los stops.
+// Vivo (default):  mínimo 3.16:1 sólido; 2.05:1 en el punto más bajo de la respiración (opacidad 0.65).
+// Accesible:       mínimo 5.03:1 sólido; 3.00:1 en la respiración. Stops: #1F6B50 #7F5700 #9D4A00 #E00007.
+// PENDIENTE: diseño elige uno y valida contra Figma.
 GradName = "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>" &
-           "<stop offset='0' stop-color='#70D6A6'/><stop offset='0.22' stop-color='#F2C12B'/>" &
-           "<stop offset='0.42' stop-color='#FFA000'/><stop offset='1' stop-color='#F40008'/></linearGradient></defs>";
-GradWm2  = "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='0'>" &
-           "<stop offset='0' stop-color='#F40008'/><stop offset='0.28' stop-color='#FFA000'/>" &
-           "<stop offset='0.45' stop-color='#D9A31C'/><stop offset='0.68' stop-color='#6ED578'/>" &
-           "<stop offset='1' stop-color='#59B8AC'/></linearGradient></defs>";
+           "<stop offset='0' stop-color='#2FA37A'/><stop offset='0.22' stop-color='#C28500'/>" &
+           "<stop offset='0.42' stop-color='#E06A00'/><stop offset='1' stop-color='#E00007'/></linearGradient></defs>";
+ColorWelcome = "#16171A";   // 17.9:1 sobre blanco
 FontUI = "'Segoe UI', Arial, sans-serif";
 ```
 
@@ -239,8 +268,8 @@ FontUI = "'Segoe UI', Arial, sans-serif";
 ## 4. Pantalla y Timer
 
 ```powerfx
-// scrSplash.Fill
-Color.Black
+// scrSplash.Fill  (igual que el loader nativo)
+Color.White
 
 // scrSplash.OnVisible
 Set(varT0, Now());
@@ -265,8 +294,8 @@ OnTimerEnd  =
     Set(varShift, SplashShift(varT, varReadyAt));
     Set(varTb, varT - varShift);
     // Opacidad común del logo (un Container no tiene opacidad; ver §5)
-    Set(varLogoAlpha, If(TL.orbit, 1, Prog(varT, 0, 150)) * (1 - Prog(varTb, TL.outAt, TL.logoOutDur)));
-    If(varTb >= TL.navAt,
+    Set(varLogoAlpha, If(TL.orbit || SplashEntry = "native", 1, Prog(varT, 0, 150)) * (1 - Prog(varTb, SplashLogoOutAt, TL.logoOutDur)));
+    If(varTb >= SplashNavAt,
         Set(varSplashOn, false);
         Navigate(scrHome, ScreenTransition.Fade)
     )
@@ -284,8 +313,8 @@ Width  = 38 * Lay.K + 2 * Lay.LogoPad
 Height = 39.07 * Lay.K + 2 * Lay.LogoPad
 X      = (Parent.Width - Self.Width) / 2
 Y      = Parent.Height / 2 + Lay.LogoTop - Lay.LogoPad
-         + If(TL.orbit, 0, Lay.LogoRise * (1 - EaseOut(Prog(varT, 0, TL.logoInDur))))
-         // El logo no se mueve para el wordmark.
+         + If(TL.orbit || SplashEntry = "native", 0, Lay.LogoRise * (1 - EaseOut(Prog(varT, 0, TL.logoInDur))))
+         // Después de entrar, el logo no se mueve.
 Fill   = Color.Transparent
 ```
 
@@ -293,12 +322,12 @@ La opacidad común del logo está en `varLogoAlpha` (se calcula en `tmrSplash.On
 
 ### imgBulb (Image, `icpt-bulb` en Media)
 ```powerfx
-// bs = escala del bulbo (solo C)
-Width        = 38 * Lay.K * If(TL.orbit, 0.85 + 0.15 * EaseOut(Prog(varT, 0, TL.bulbInDur)), 1)
+// Escala de entrada solo en C/D con SplashEntry = "scratch". Con "native" el bulbo arranca completo.
+Width        = 38 * Lay.K * If(TL.orbit && SplashEntry = "scratch", 0.85 + 0.15 * EaseOut(Prog(varT, 0, TL.bulbInDur)), 1)
 Height       = Self.Width * 39.07 / 38
 X            = Lay.LogoPad + (38 * Lay.K - Self.Width) / 2
 Y            = Lay.LogoPad + (39.07 * Lay.K - Self.Height) / 2 + BulbFloat(varT, varShift)   // solo la bombilla flota
-Transparency = 1 - varLogoAlpha * If(TL.orbit, Prog(varT, 0, TL.bulbInDur), 1)
+Transparency = 1 - varLogoAlpha * If(TL.orbit && SplashEntry = "scratch", Prog(varT, 0, TL.bulbInDur), 1)
 ```
 
 ### cirDot* (Circle). Ejemplo: cirDotLB
@@ -323,12 +352,17 @@ Y      = Lay.LogoPad + (31.09 +  0.591 * DotDrift(WaveLocal(varT, 0, varShift)))
 Fill   = RGBA(242, 193, 43, varLogoAlpha)
 ```
 
-Variante C (orbit). Centro de giro (19, 18.5). Para cada punto, `r` y `a0` son constantes (calcular una vez con `Sqrt(dx^2 + dy^2)` y `Atan2(dx, dy)`; en Power Fx `Atan2` recibe **(x, y)**):
+Variantes C / D (orbit). Centro de giro (19, 18.5). Para cada punto, `r` y `a0` son constantes (calcular una vez con `Sqrt(dx^2 + dy^2)` y `Atan2(dx, dy)`; en Power Fx `Atan2` recibe **(x, y)**):
 ```powerfx
-With({p: EaseOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, TL.orbitDur))},
-     With({a: a0 + (1 - p) * Radians(TL.sweep)},
+// SplashEntry = "native": arranca en reposo y en su lugar, vuelta completa (EaseInOut, SpinDur, SpinSweep).
+// SplashEntry = "scratch": entra desde 0 (EaseOut, orbitDur, sweep).
+With({p: If(SplashEntry = "native",
+            EaseInOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, Lay.SpinDur)),
+            EaseOut(Prog(varT, TL.orbitAt + 0 * TL.orbitStag, TL.orbitDur)))},
+     With({a: a0 + (1 - p) * Radians(If(SplashEntry = "native", Lay.SpinSweep, TL.sweep))},
           /* X */ Lay.LogoPad + (19 + r * Cos(a)) * Lay.K - Self.Width / 2))
-// Y igual con 18.5 + r * Sin(a). Width multiplicado por p. Alpha × Clamp01(p * 3).
+// Y igual con 18.5 + r * Sin(a).
+// Solo con "scratch": Width multiplicado por p y Alpha × Clamp01(p * 3). Con "native" el punto queda a escala 1 y opaco.
 // Sumar también el drift: + ux * DotDrift(s) en X, + uy * DotDrift(s) en Y (igual que A / B).
 ```
 
@@ -339,7 +373,7 @@ Width = Parent.Width
 Height = Lay.TxtSize * 1.6
 Y = Parent.Height / 2 + Lay.WelcomeBase - Lay.TxtSize * 1.2
 ImagePosition = ImagePosition.Fit
-Image = RevealSvg("Welcome", varT, Lay.TxtSize, Parent.Width, "#FFFFFF", "", FontUI,
+Image = RevealSvg("Welcome", varT, Lay.TxtSize, Parent.Width, ColorWelcome, "", FontUI,
                   TL.w1In, TL.w1Stag, TL.w1Dur, false,
                   TL.w1Out + varShift, TL.w1OutStag, TL.w1OutDur, false)
 Transparency = TL.breath * Breath(varT, varShift)
@@ -359,22 +393,32 @@ Transparency = TL.breath * Breath(varT, varShift)
 Visible = varTb < TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 50
 ```
 
-### imgWm1 / imgWm2 (Image)
-```powerfx
-// imgWm1 (hoy texto con fuente de sistema; reemplazar por paths de Figma, ver §8)
-Image = RevealSvg("Investment", varTb, Lay.WmSize, Parent.Width, "#FFFFFF", "", FontUI,
-                  TL.wm1In, TL.wm1Stag, TL.wm1Dur, false, 1E9, 0, 1, false)
-Y = Parent.Height / 2 + Lay.Wm1Base - Lay.WmSize * 1.2
-Transparency = Prog(varTb, TL.outAt, TL.wmOutDur)
-Visible = varTb >= TL.wm1In
+### Indicador de carga (SplashLoader)
+"Loading..." aparece con el nombre. La barra está visible desde t = 0, porque continúa la del loader nativo. Los dos salen cuando el nombre empieza a salir. No respiran: "Loading..." tiene que mantener 4.5:1.
 
-// imgWm2 — misma línea que el nombre: espera a que el nombre termine de salir (nombres largos)
-// Wm2At = Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40)
-Image = RevealSvg("Prioritization Tool", varTb, Lay.WmSize, Parent.Width, "url(#g)", GradWm2, FontUI,
-                  Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40),
-                  TL.wm2Stag, TL.wm2Dur, false, 1E9, 0, 1, false)
-Y = Parent.Height / 2 + Lay.Wm2Base - Lay.WmSize * 1.2
-Visible = varTb >= Max(TL.wm2In, TL.nmOut + Len(SplashUserName) * TL.nmOutStag + TL.nmOutDur + 40)
+```powerfx
+// lblLoading (opción "text")
+Text = "Loading..."
+X = 0; Width = Parent.Width; Align = Align.Center
+Height = 20
+Y = Parent.Height / 2 + Lay.LoadingBase - 15
+Size = 10.5                       // ≈ 14 px
+FontWeight = FontWeight.Semibold
+Color = RGBA(95, 99, 104, 1)      // #5F6368 = 6.05:1 sobre blanco
+Transparency = 1 - Prog(varT, TL.nmIn + TL.nmDur, 250) * (1 - Prog(varTb, TL.nmOut, 200))
+Visible = SplashLoader = "text"
+
+// recBarTrack (opción "bar"). Mismos tamaño, posición y colores que la barra del loader nativo.
+Width = Lay.BarW; Height = 2
+X = (Parent.Width - Lay.BarW) / 2
+Y = Parent.Height / 2 + Lay.BarY
+Fill = RGBA(236, 236, 236, 1)     // #ECECEC (nativo)
+Transparency = Prog(varTb, TL.nmOut, 200)   // visible desde t = 0: continúa la barra del nativo
+Visible = SplashLoader = "bar"
+
+// recBarFill (opción "bar"; mismo X / Y / Height / Transparency / Visible que recBarTrack)
+Width = Lay.BarW * LoadProgress(varT, varReadyAt, varShift)
+Fill = RGBA(86, 86, 86, 1)        // #565656 (nativo), 7.4:1 sobre blanco
 ```
 
 ### Tags — DINÁMICO
@@ -388,9 +432,9 @@ Width  = Max(114, Len(lblOU.Text) * 9.5 + 36)
 Height = 36
 X      = 32                                   // conVer: Parent.Width - 32 - Self.Width
 Y      = Parent.Height - 28 - Self.Height
-Fill   = RGBA(22, 23, 26, 1)
+Fill   = RGBA(240, 241, 242, 1)    // #F0F1F2 (validar contra Figma)
 RadiusTopLeft = 6   // y los otros tres
-// lbl*: Color = RGBA(226, 227, 230, 1), Size 12 (≈16 px), FontWeight Semibold, Align Center
+// lbl*: Color = RGBA(61, 66, 72, 1) (#3D4248, 8.97:1 sobre #F0F1F2), Size 12 (≈16 px), FontWeight Semibold, Align Center
 ```
 
 ---
@@ -399,20 +443,22 @@ RadiusTopLeft = 6   // y los otros tres
 
 | ms | Evento |
 |---|---|
-| 0 → 450 | El bulbo entra: fade + escala 0.85 → 1. |
-| 80 → 1110 | Los 5 puntos entran orbitando 150° alrededor del bulbo (stagger 70 ms, 750 ms cada uno). |
+| 0 | Termina el loader nativo (blanco). Empieza el splash, también blanco. |
+| 0 | El logo está completo y en el mismo lugar que en el loader nativo. |
+| 80 → 1460 | Los 5 puntos dan una vuelta completa alrededor de la bombilla y vuelven a su lugar (stagger 70 ms, 1100 ms cada uno, EaseInOut). |
 | 780 → 1110 | "Welcome" letra por letra. |
 | 950 → ≈ 1460 | Nombre letra por letra, con fade. El final depende del largo del nombre. |
+| 0 | Opción "bar": la barra sigue en el mismo lugar que la del nativo, desde 90 %. |
+| ≈ 1270 → 1520 | Opción "text": aparece "Loading...". |
 | 1700, 3000, 4300 | 3 olas. Cada una: LB → LT → Top → RT → RB, cada 95 ms. La bombilla flota un ciclo por ola. |
-| 1570 → 5170 | "Welcome" y el nombre respiran (opacidad mín. 0.65, como el video) en los 3 loops, sincronizados con cada ola. |
+| 1570 → 5170 | "Welcome" y el nombre respiran (opacidad mín. 0.65) en los 3 loops, sincronizados con cada ola. |
 | 5550 → 5860 | "Welcome" baja y sale por la máscara. |
-| 5730 → ≈ 6210 | El nombre baja y sale, con fade. |
-| 6000 → 6430 | "Investment" entra letra por letra, en la línea de "Welcome". El logo no se mueve. |
-| 6250 → 6550 | "Prioritization Tool" entra en la línea del nombre (espera más si el nombre es largo). |
-| 7250 | Sale el wordmark (120 ms). El logo sale con fade (250 ms). |
-| 7700 | `Navigate(scrHome, ScreenTransition.Fade)`. |
+| 5730 → ≈ 6210 | El nombre baja y sale, con fade. El indicador de carga sale en 200 ms. |
+| ≈ 6210 → 6410 | Queda solo el logo (`logoHold`: 200 ms después de que sale el nombre). |
+| ≈ 6410 → 6660 | El logo sale con fade (250 ms). Queda el fondo blanco con los tags. |
+| ≈ 6860 | `Navigate(scrHome, ScreenTransition.Fade)`. |
 
-Con datos lentos, todo lo que está desde 5550 ms en adelante se corre en ciclos completos de 1300 ms. Los tiempos de A, B y C están en `TL` (§3).
+Los tiempos con "≈" son para un nombre de 20 letras. Cada letra suma 9 ms a la salida del nombre y a todo lo que sigue (`SplashNameEnd`). Con datos lentos, todo lo que está desde 5550 ms en adelante se corre en ciclos completos de 1300 ms. Los tiempos de A, B y C están en `TL` (§3).
 
 ---
 
@@ -420,13 +466,13 @@ Con datos lentos, todo lo que está desde 5550 ms en adelante se corre en ciclos
 
 | | A · Fiel al video | B · Compacta | C · Orbit + compacta | D · Orbit + 3 olas |
 |---|---|---|---|---|
-| Duración | ≈ 11 s | ≈ 6 s | ≈ 5.6 s | ≈ 7.7 s |
+| Duración (nombre de 20 letras) | ≈ 8.3 s | ≈ 4.6 s | ≈ 4.3 s | ≈ 6.9 s |
 | Entrada del logo | Fade + sube 10 px | Igual que A | Bulbo escala 0.85 → 1. Los puntos entran orbitando 150° (Cos/Sin), stagger 70 ms. | Igual que C |
 | Olas | 4 × 1450 ms | 2 × 1300 ms | 1 × 1300 ms | 3 × 1300 ms |
 | Respiración del texto | 0.35, olas 2–4 | 0.25, ola 2 | No llega a verse (1 ola) | 0.35, en los 3 loops |
 | Uso sugerido | Referencia / demo | Ingresos siguientes | Ingresos siguientes, versión de marca | **Default.** Primer ingreso del día |
 
-En ninguna variante el logo se mueve para el wordmark. Recomendación: D la primera vez del día y C las siguientes. Con `SplashShift`, ninguna corta la animación a mitad de una ola si los datos tardan.
+Todas terminan igual: sale el nombre, queda el logo solo y sale. Recomendación: D la primera vez del día y C las siguientes. Con `SplashShift`, ninguna corta la animación a mitad de una ola si los datos tardan.
 
 ---
 
@@ -445,7 +491,9 @@ En el prototipo se pueden probar en la barra de abajo, o por URL: `?name=…&ou=
 ## 9. Pendientes
 
 1. **`icpt-logo.svg` no está en el repo.** Usé los paths del prototipo v2. Los colores de los puntos en el video son diferentes de los del SVG v2 (tabla en §5). Uno de los dos está desactualizado. Confirmar contra Figma.
-2. **Wordmark como paths.** Hace falta exportar de Figma "Investment" y "Prioritization Tool" con el texto convertido a outlines (Outline / Flatten) y **una letra por capa** (sin hacer Flatten de toda la palabra), para mantener el revelado letra por letra. Cada letra pasa a ser un `<g transform='translate(0, offset)'>`.
+2. **Continuidad con el loader nativo.** `Lay.LogoTop` (−99) y `Lay.K` (69 / 39.07) ya están alineados sobre una captura en 1366 × 768. Si la app usa otro tamaño, repitan la alineación con el overlay del prototipo ("Referencia nativo", "Logo Y", "Logo alto").
 3. **Tamaño de diseño de la app.** Usé 1366 × 768. Si la app usa otro tamaño, todo está posicionado desde el centro y se adapta, pero las medidas de `Lay` son px de diseño.
 4. **Prueba de parpadeo (riesgo #13).** Antes de construir todo, armen solo `imgWelcome` + `tmrSplash` y pruébenlo en Teams desktop, en el navegador y en el player móvil. Si parpadea: suban `Duration` a 50 ms, o hagan solo el nombre por letra y el resto por línea.
 5. **Fuente fuera de Windows.** En el player de iOS/Android no hay Segoe UI. El SVG usa Arial como fallback. Si el splash se usa en móvil, consideren pasar "Welcome" a paths también.
+6. **Indicador de carga.** Decidir entre "Loading..." y la barra (`SplashLoader`). Si la barra se elige: ¿se puede leer el progreso real de la carga? Si no, `LoadProgress` lo estima.
+7. **Gradiente del nombre sobre blanco.** Decidir entre Vivo y Accesible (ver `GradName`).

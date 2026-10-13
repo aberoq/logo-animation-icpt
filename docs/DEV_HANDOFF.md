@@ -16,7 +16,8 @@ Este documento es el punto de entrada para el dev que implementa la animación e
 |---|---|---|
 | Repo | `aberoq/logo-animation-icpt`, rama `claude/icpt-entrance-animation-n8erv5` | Todo el material |
 | Spec Power Fx | `docs/ICPT_Entrance_PowerFx_Spec.md` | Fórmulas por control, UDFs, timelines, riesgos conocidos |
-| Prototipo | `prototype/icpt-entrance.html` (abrir en el navegador) | Referencia visual. La barra de abajo permite pausar, ir a cualquier ms y comparar variantes. |
+| Prototipo | `prototype/icpt-entrance.html` (abrir en el navegador) | Referencia visual. La barra de abajo permite pausar, ir a cualquier ms y comparar variantes. Por defecto muestra antes el loader nativo simulado (medido en una grabación de la app), para ver el corte nativo → splash como en la app real. Se apaga con "Mostrar loader nativo antes" o con `?native=0`. |
+| Referencia para desarrollo | `prototype/icpt-entrance-dev.html` | **La referencia para implementar.** Solo el splash, a pantalla completa, sin controles. Nombre, OU y versión por URL: `?name=Ana%20P%C3%A9rez&ou=LA%20OU&v=4.2`. Tecla R: reinicia. |
 | Prototipo publicado | Link privado de claude.ai. **Se tiene que compartir desde el menú Share** para que el dev lo pueda abrir. | Lo mismo, sin descargar nada |
 | Asset del bulbo | `assets/icpt-bulb.svg` | Cargar en Media. Los 5 puntos **no** están en el SVG: son controles Circle. |
 | Video de referencia | `test-entrance-animation.mp4` (no está en el repo, porque tiene marca del cliente) | Compartir por el canal interno del proyecto, si el dev lo necesita |
@@ -25,7 +26,9 @@ Este documento es el punto de entrada para el dev que implementa la animación e
 
 No cambiar estas decisiones sin consultar con diseño:
 
-- **El logo no se mueve** para el wordmark. "Investment / Prioritization Tool" usa las mismas dos líneas que "Welcome" + nombre.
+- **Fondo blanco**, por continuidad con el loader nativo de Power Apps (fondo blanco, logo al centro y barra gris; no se puede modificar). Pasar del blanco del nativo a un splash negro se veía brusco. "Welcome" es oscuro (`#16171A`), el nombre usa un gradiente con contraste sobre blanco y los tags son gris claro con texto oscuro.
+- **Sin wordmark al final.** El nativo ya muestra el logo + "Investment Prioritization Tool". El splash termina con "Welcome [NAME]": el nombre sale, el logo queda solo un momento y sale.
+- **El logo empata con el del loader nativo**, en posición y tamaño (alto 69 px, top a −99 del centro), y el splash **arranca con el logo completo**, igual al último cuadro del nativo. En C y D los puntos dan una vuelta y vuelven a su lugar (`SplashEntry = "native"`). Nada desaparece en el corte.
 - **Movimiento fluido:** los puntos siguen un objetivo con un resorte de amortiguamiento crítico (`Follow`). No reemplazar por easings por tramos: con easings por tramos el movimiento se ve robótico.
 - **Pulso de los puntos:** 100 % → 80 % → 210 % → 100 %, con una separación de 3.5 unidades (~9 px) sobre el rayo de cada punto.
 - **Flote:** solo la bombilla flota. Los puntos no.
@@ -55,13 +58,13 @@ Set(varT, Mod(DateDiff(varT0, Now(), TimeUnit.Milliseconds), 3000))
 
 // Image1: X 0, Y 300, Width Parent.Width, Height 58, ImagePosition Fit
 // Image1.Image  (entra a los 0 ms, sale a los 1500 ms, se repite cada 3 s)
-RevealSvg("Welcome María José Ñúñez & Co", varT, 36, Parent.Width, "#FFFFFF", "",
+RevealSvg("Welcome María José Ñúñez & Co", varT, 36, Parent.Width, "#16171A", "",
           "'Segoe UI', Arial, sans-serif",
           0, 25, 220, false,
           1500, 25, 200, false)
 
 // Screen1.Fill
-Color.Black
+Color.White
 ```
 
 5. Verifiquen en **Teams desktop**, en el **navegador** y en el **player móvil**:
@@ -82,11 +85,13 @@ Color.Black
 
 Verificación: comparen contra el prototipo en los ms 1700, 2000 y 2300 (el scrub de la barra permite ir a cada uno). Los puntos no se cortan en el borde del Container. Solo la bombilla flota.
 
-### Etapa 2 — Texto y wordmark
+Continuidad con el nativo: `Lay.LogoTop` y `Lay.K` ya están alineados con una captura en 1366 × 768. Verifiquen en la app real, cuadro a cuadro (grabación de pantalla), que en el corte del nativo al splash el logo no salta, no cambia de tamaño y no desaparece. Si la app usa otro tamaño, repitan la alineación con el overlay del prototipo.
 
-`imgWelcome`, `imgName`, `imgWm1`, `imgWm2` y los tags (spec §5).
+### Etapa 2 — Texto, indicador de carga y tags
 
-Verificación: la respiración del texto se ve en los 3 loops. Con un nombre de 35 o más caracteres, la fuente se achica, y "Prioritization Tool" espera a que el nombre termine de salir.
+`imgWelcome`, `imgName`, el indicador de carga (`lblLoading` o `recBarTrack` + `recBarFill`, según `SplashLoader`) y los tags (spec §5).
+
+Verificación: la respiración del texto se ve en los 3 loops. Con un nombre de 35 o más caracteres, la fuente se achica. Cuando el nombre termina de salir, el logo queda solo 200 ms y sale.
 
 ### Etapa 3 — Carga de datos y navegación
 
@@ -101,12 +106,13 @@ Reemplazar los placeholders en `App.Formulas`: `SplashUserName`, `SplashOrgUnit`
 ## 5. Checklist de aceptación
 
 - [ ] Sin parpadeo en Teams desktop, navegador y móvil.
-- [ ] Secuencia D completa en ≈ 7.7 s con datos rápidos.
+- [ ] Secuencia D completa en ≈ 6.9 s con datos rápidos (nombre de 20 letras; cada letra suma 9 ms).
 - [ ] Con datos lentos, la animación espera en ciclos completos y nunca se corta.
 - [ ] Nombre, OU y versión vienen de datos reales. Nada está hardcodeado.
 - [ ] Nombres largos y con caracteres especiales se ven bien.
 - [ ] Funciona con configuración regional es-CO / es-MX.
-- [ ] El logo no se mueve cuando entra el wordmark.
+- [ ] El logo empata en posición y tamaño con el loader nativo.
+- [ ] El paso del loader nativo al splash no se nota: mismo fondo blanco, sin salto del logo.
 
 ## 6. Preguntas abiertas
 
@@ -116,7 +122,9 @@ Reemplazar los placeholders en `App.Formulas`: `SplashUserName`, `SplashOrgUnit`
 | ¿`User().FullName` es el nombre correcto, o usan un perfil propio? | Rafa |
 | ¿Quién actualiza `AppVersion` en cada release? | Rafa |
 | Colores de los puntos: el video y el SVG v2 no coinciden (spec §5) | Diseño, contra Figma |
-| Wordmark como paths de Figma, una letra por capa (hoy es texto con Segoe UI) | Diseño exporta, dev reemplaza en `imgWm1` / `imgWm2` |
+| ¿Podemos leer el progreso real de la carga para la barra? (si no, `LoadProgress` lo estima) | Rafa |
+| Indicador de carga: ¿"Loading..." o barra como el nativo? (`SplashLoader`) | Diseño |
+| Gradiente del nombre: ¿Vivo o Accesible? (spec §3, `GradName`) | Diseño, contra Figma |
 | Tamaño de diseño real de la app (se asumió 1366 × 768) | Rafa |
 
 ## 7. Si el dev usa Claude Code
