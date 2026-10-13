@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ICPT Welcome Splash</title>
-<!-- GENERADO por scripts/build_po.py a partir de icpt-entrance.html. No editar a mano. -->
+<!-- GENERADO por scripts/build_variants.py a partir de icpt-entrance.html. No editar a mano. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Solo para la vista previa. En Power Apps: "Segoe UI" (fuente del sistema). -->
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@600;700&display=swap" rel="stylesheet">
+<!-- No bloqueante: si la fuente tarda, la animación arranca igual (con la fuente del sistema). -->
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root{
     color-scheme:dark;
@@ -176,7 +177,7 @@ let NAME_GRAD = 'vivid';
    'scratch' = entrada anterior: la bombilla aparece con fade y los puntos entran orbitando desde 0. */
 let ENTRY = 'native';
 const SPIN = {sweep: -360, dur: 1100};   // vuelta completa de la entrada 'native' (C/D), stagger = orbitStag
-let LOADER = 'text';   // PO: "Loading..." en el splash; el loader nativo conserva su barra      // 'text' = "Loading..." | 'bar' = barra delgada como el nativo | 'none'
+let LOADER = 'text';   // "Loading..." en el splash; el loader nativo conserva su barra      // 'text' = "Loading..." | 'bar' = barra delgada como el nativo | 'none'
 
 // Puntos del logo: centro en unidades del SVG, diámetro 4.954. "wave" = orden en la ola (video: LB→LT→top→RT→RB).
 const DOT_D = 4.954;

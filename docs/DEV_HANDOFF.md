@@ -17,6 +17,7 @@ Este documento es el punto de entrada para el dev que implementa la animación e
 | Repo | `aberoq/logo-animation-icpt`, rama `claude/icpt-entrance-animation-n8erv5` | Todo el material |
 | Spec Power Fx | `docs/ICPT_Entrance_PowerFx_Spec.md` | Fórmulas por control, UDFs, timelines, riesgos conocidos |
 | Prototipo | `prototype/icpt-entrance.html` (abrir en el navegador) | Referencia visual. La barra de abajo permite pausar, ir a cualquier ms y comparar variantes. Por defecto muestra antes el loader nativo simulado (medido en una grabación de la app), para ver el corte nativo → splash como en la app real. Se apaga con "Mostrar loader nativo antes" o con `?native=0`. |
+| Referencia para desarrollo | `prototype/icpt-entrance-dev.html` | **La referencia para implementar.** Solo el splash, a pantalla completa, sin controles. Nombre, OU y versión por URL: `?name=Ana%20P%C3%A9rez&ou=LA%20OU&v=4.2`. Tecla R: reinicia. |
 | Prototipo publicado | Link privado de claude.ai. **Se tiene que compartir desde el menú Share** para que el dev lo pueda abrir. | Lo mismo, sin descargar nada |
 | Asset del bulbo | `assets/icpt-bulb.svg` | Cargar en Media. Los 5 puntos **no** están en el SVG: son controles Circle. |
 | Video de referencia | `test-entrance-animation.mp4` (no está en el repo, porque tiene marca del cliente) | Compartir por el canal interno del proyecto, si el dev lo necesita |

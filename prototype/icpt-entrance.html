@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Solo para la vista previa. En Power Apps: "Segoe UI" (fuente del sistema). -->
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@600;700&display=swap" rel="stylesheet">
+<!-- No bloqueante: si la fuente tarda, la animación arranca igual (con la fuente del sistema). -->
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root{
     --ui-bg:#0d0d0f; --ui-panel:#17171a; --ui-line:#2a2a2f; --ui-text:#d9d9de; --ui-dim:#8a8a92; --ui-accent:#F40008;
